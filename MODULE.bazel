@@ -1,0 +1,22 @@
+"Bazel dependencies"
+
+module(
+    name = "com_xangcastle_rules_vite",
+    version = "0.1.0",
+    compatibility_level = 1,
+)
+
+bazel_dep(name = "bazel_skylib", version = "1.4.1")
+bazel_dep(name = "package_metadata", version = "0.0.2")
+bazel_dep(name = "platforms", version = "0.0.5")
+
+bazel_dep(name = "gazelle", version = "0.35.0", dev_dependency = True, repo_name = "bazel_gazelle")
+bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.4.1", dev_dependency = True)
+bazel_dep(name = "aspect_bazel_lib", version = "1.32.1", dev_dependency = True)
+bazel_dep(name = "buildifier_prebuilt", version = "6.1.2", dev_dependency = True)
+
+vite = use_extension("//vite:extensions.bzl", "vite")
+vite.toolchain(vite_version = "1.14.2")
+use_repo(vite, "vite_toolchains")
+
+register_toolchains("@vite_toolchains//:all")
