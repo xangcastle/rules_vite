@@ -1,5 +1,18 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//vite/private:resolved_toolchain.bzl", "resolved_toolchain")
+load("@npm//:vite/package_json.bzl", vite = "bin")
+load("@npm//:vitest/package_json.bzl", vitest = "bin")
+
+vite.vite_binary(
+    name = "vite_cli",
+    env = {"BAZEL_BINDIR": "."},
+    visibility = ["//visibility:public"],
+)
+
+vitest.vitest_binary(
+    name = "vitest_cli",
+    visibility = ["//visibility:public"],
+)
 
 # For stardoc to reference the files
 exports_files(["defs.bzl"])

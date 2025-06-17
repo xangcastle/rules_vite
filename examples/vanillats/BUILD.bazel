@@ -1,0 +1,11 @@
+load("//vite:defs.bzl", "vite_binary")
+
+vite_binary(
+    name = "dev",
+    srcs = glob([
+        "src/**",
+        "public/**",
+        "index.html",
+        "tsconfig.json",
+    ]),
+)
