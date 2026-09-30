@@ -1,0 +1,33 @@
+load("@aspect_bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@aspect_bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load(":repo_tree.bzl", "repo_tree")
+
+exports_files(["lock.json"])
+
+copy_file(
+    name = "build_bazel",
+    src = "@shadcn//:BUILD.bazel",
+    out = "build_bazel.gen",
+)
+
+copy_file(
+    name = "components_bzl",
+    src = "@shadcn//:components.bzl",
+    out = "components_bzl.gen",
+)
+
+repo_tree(
+    name = "tree",
+    srcs = "@shadcn//:all_files",
+    out = "tree.gen",
+)
+
+write_source_files(
+    name = "snapshots",
+    files = {
+        "snapshots/build.snap": ":build_bazel",
+        "snapshots/components.snap": ":components_bzl",
+        "snapshots/tree.snap": ":tree",
+    },
+    visibility = ["//visibility:private"],
+)

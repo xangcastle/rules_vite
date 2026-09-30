@@ -1,0 +1,5 @@
+# e2e apps are standalone Bazel modules with their own MODULE.bazel; they
+# are not packages of this workspace.
+e2e/vanilla
+e2e/react
+e2e/chadcn
