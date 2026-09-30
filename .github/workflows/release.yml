@@ -1,0 +1,23 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create release tarball
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          git archive --format=tar.gz --prefix="rules_vite-${VERSION}/" ${GITHUB_REF_NAME} -o "rules_vite-${VERSION}.tar.gz"
+          sha256sum "rules_vite-${VERSION}.tar.gz" > "rules_vite-${VERSION}.tar.gz.sha256"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            rules_vite-*.tar.gz
+            rules_vite-*.tar.gz.sha256

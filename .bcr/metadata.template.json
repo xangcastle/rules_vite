@@ -1,0 +1,15 @@
+{
+  "homepage": "https://github.com/xangcastle/rules_vite",
+  "maintainers": [
+    {
+      "name": "xangcastle",
+      "email": "xangcastle@gmail.com",
+      "github": "xangcastle"
+    }
+  ],
+  "repository": [
+    "github:xangcastle/rules_vite"
+  ],
+  "versions": [],
+  "yanked_versions": {}
+}
