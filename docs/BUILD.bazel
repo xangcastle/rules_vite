@@ -1,0 +1,21 @@
+"""Stardoc API docs, written into the source tree.
+
+bazel run //docs:update_docs regenerates docs/api/defs.md.
+"""
+
+load("@aspect_bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("@stardoc//stardoc:stardoc.bzl", "stardoc")
+
+stardoc(
+    name = "defs_api",
+    out = "defs_api.md",
+    input = "//:defs.bzl",
+    deps = ["//:defs"],
+)
+
+write_source_files(
+    name = "update_docs",
+    files = {
+        "api/defs.md": ":defs_api",
+    },
+)
