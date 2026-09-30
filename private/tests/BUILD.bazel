@@ -1,0 +1,3 @@
+load(":node_helpers_test.bzl", "node_helpers_test_suite")
+
+node_helpers_test_suite()
