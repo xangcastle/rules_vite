@@ -1,0 +1,46 @@
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@rules_vite//:defs.bzl", "node_cli", "vite_build", "vite_run", "vitest_test")
+
+npm_link_all_packages(name = "node_modules")
+
+vite_build(
+    name = "web",
+    srcs = glob(["src/**"]) + [
+        "index.html",
+        "package.json",
+        "vite.config.js",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:node_modules/@vitejs/plugin-react",
+        "//:node_modules/react",
+        "//:node_modules/react-dom",
+        "//:node_modules/vite",
+    ],
+)
+
+vitest_test(
+    name = "unit_tests",
+    srcs = glob(["src/**"]) + [
+        "index.html",
+        "package.json",
+        "vite.config.js",
+    ],
+    config = "vite.config.js",
+    node_modules = "//:node_modules",
+)
+
+vite_run(
+    name = "web.dev",
+    args = [
+        "--host",
+        "--port",
+        "5199",
+        "--strictPort",
+    ],
+)
+
+node_cli(
+    name = "chadcn",
+    package = "//:node_modules/shadcn",
+)

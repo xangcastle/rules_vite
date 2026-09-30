@@ -1,0 +1,23 @@
+load("@rules_vite//:defs.bzl", "vite_build")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+
+npm_link_all_packages(name = "node_modules")
+
+vite_build(
+    name = "button_app",
+    srcs = ["main.tsx", "index.html", "cn.ts"],
+    config = ":vite.config.js",
+    injected_srcs = ["@shadcn//:button"],
+    inject_dir = "components/ui",
+    inject_strip = "components/button/",
+    deps = [
+        "//:node_modules/clsx",
+        "//:node_modules/tailwind-merge",
+        "//:node_modules/class-variance-authority",
+        "//:node_modules/react",
+        "//:node_modules/react-dom",
+        "//:node_modules/radix-ui",
+        "//:node_modules/vite",
+    ],
+    visibility = ["//visibility:public"],
+)
