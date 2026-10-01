@@ -10,12 +10,6 @@ copy_file(
     out = "build_bazel.gen",
 )
 
-copy_file(
-    name = "components_bzl",
-    src = "@shadcn//:components.bzl",
-    out = "components_bzl.gen",
-)
-
 repo_tree(
     name = "tree",
     srcs = "@shadcn//:all_files",
@@ -26,7 +20,6 @@ write_source_files(
     name = "snapshots",
     files = {
         "snapshots/build.snap": ":build_bazel",
-        "snapshots/components.snap": ":components_bzl",
         "snapshots/tree.snap": ":tree",
     },
     visibility = ["//visibility:private"],

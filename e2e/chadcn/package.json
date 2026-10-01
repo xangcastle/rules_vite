@@ -1,20 +1,23 @@
 {
-  "name": "chadcn-example",
-  "private": true,
-  "dependencies": {
-    "class-variance-authority": "^0.7.0",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "clsx": "^2.1.0",
-    "tailwind-merge": "^2.0.0",
-    "radix-ui": "^1.0.0"
-  },
-  "devDependencies": {
-    "vite": "7.3.1"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
-  }
+    "name": "chadcn-example",
+    "private": true,
+    "dependencies": {
+        "class-variance-authority": "^0.7.0",
+        "react": "18.3.1",
+        "react-dom": "18.3.1",
+        "tailwind-merge": "^2.0.0",
+        "radix-ui": "^1.0.0",
+        "clsx": "^2.1.0"
+    },
+    "devDependencies": {
+        "@vitejs/plugin-react": "4.7.0",
+        "jsdom": "27.0.0",
+        "vite": "7.3.1",
+        "vitest": "3.2.4"
+    },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "esbuild"
+        ]
+    }
 }

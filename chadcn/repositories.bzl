@@ -1,71 +1,163 @@
 """Repository rules for shadcn component downloads.
 
 chadcn_components_repo downloads registry JSON pinned by sha256, extracts
-the component source files from files[].content, and exposes each as a
-js_library. chadcn_cli_repo fetches the shadcn CLI npm tarball.
+the component source files from files[].content into a tree that mirrors
+the registry layout (ui/, lib/, hooks/), rewrites registry-internal
+imports to relative paths, and exposes the tree both as one filegroup and
+as per-component js_library targets. chadcn_cli_repo fetches the shadcn
+CLI npm tarball.
 """
 
-def _extract_component(rctx, name, entry, seen):
-    """Downloads a component JSON and extracts its files. Returns (files, transitive_dep_names)."""
+def _lock_urls(entry, name):
+    urls = entry.get("urls")
+    if urls:
+        return urls
+    if entry.get("url"):
+        return [entry["url"]]
+    fail("chadcn lock entry %s needs url or urls" % name)
+
+def _registry_rel(path):
+    """Strips the leading registry/<style>/ segments from a registry file path."""
+    parts = path.split("/")
+    if len(parts) > 2 and parts[0] == "registry":
+        return "/".join(parts[2:])
+    return path
+
+def _dirname(p):
+    """The directory portion of a slash path, or "" at the root."""
+    idx = p.rfind("/")
+    return p[:idx] if idx >= 0 else ""
+
+def _rewrite_registry_imports(content, from_dir):
+    """Rewrites "@/registry/<style>/<dir>/<name>" import specifiers to relative paths.
+
+    Args:
+      content: the component source.
+      from_dir: the directory (tree-relative, no trailing slash) the file
+        lives in; "" for the tree root.
+
+    Returns:
+      The source with registry-internal specifiers replaced by relative
+      ones that resolve inside the extracted tree.
+    """
+    token = "\"@/registry/"
+    parts = content.split(token)
+    out = [parts[0]]
+    for part in parts[1:]:
+        end = part.find("\"")
+        if end < 0:
+            out.append(part)
+            continue
+        spec = part[:end]
+        parts_of_spec = spec.split("/")
+        target_dir = "/".join(parts_of_spec[1:-1])
+        name = parts_of_spec[-1]
+        if target_dir == from_dir:
+            rel = "./" + name
+        elif from_dir == "":
+            rel = target_dir + "/" + name
+        else:
+            rel = "../" * (from_dir.count("/") + 1) + target_dir + "/" + name
+        out.append("\"" + rel + "\"" + part[end + 1:])
+    return "".join(out)
+
+def _extract(rctx, name, entry, seen, owners):
+    """Downloads a component JSON and extracts its files into the tree.
+
+    Args:
+      rctx: the repository context.
+      name: the component name in the lock.
+      entry: the lock entry (url/urls + sha256).
+      seen: mutable set of already-extracted component names.
+      owners: mutable dict of tree path -> component name, for collision
+        detection.
+
+    Returns:
+      The list of registry dependencies declared by the component.
+    """
     if name in seen:
-        return [], []
+        return []
     seen[name] = True
 
+    urls = _lock_urls(entry, name)
     raw = rctx.download(
-        url = entry["url"],
+        url = urls,
         sha256 = entry["sha256"],
         output = "_raw/%s.json" % name,
     )
     if not raw.success:
-        fail("chadcn: failed to download %s from %s" % (name, entry["url"]))
+        fail("chadcn: failed to download %s from %s" % (name, urls[0]))
 
     spec = json.decode(rctx.read("_raw/%s.json" % name))
 
-    files = []
     for f in spec.get("files", []):
         content = f.get("content", "")
         if not content:
             continue
-        target = f["path"]
-        if "/" in target:
-            target = target.split("/")[-1]
+        rel = _registry_rel(f["path"])
+        if rel in owners and owners[rel] != name:
+            fail(
+                "chadcn: %s and %s both provide %s; the lock entries overlap." % (owners[rel], name, rel),
+            )
+        owners[rel] = name
         rctx.file(
-            "components/%s/%s" % (name, target),
-            content,
+            "components/%s" % rel,
+            _rewrite_registry_imports(content, _dirname(rel)),
             executable = False,
         )
-        files.append(target)
 
-    return files, spec.get("registryDependencies", [])
+    return spec.get("registryDependencies", [])
+
+def _process_component(rctx, name, components, seen, owners):
+    """Extracts one component and, transitively, its registry dependencies."""
+    if name in seen:
+        return
+    entry = components.get(name)
+    if not entry:
+        fail(
+            "chadcn: %s is required by another component but missing " % name +
+            "from the lock; add its url and sha256.",
+        )
+    if not entry.get("sha256"):
+        fail("chadcn lock entry %s needs sha256" % name)
+    pending = list(_extract(rctx, name, entry, seen, owners))
+    for _ in range(64):
+        if not pending:
+            return
+        current = pending.pop(0)
+        if current in seen:
+            continue
+        current_entry = components.get(current)
+        if not current_entry:
+            fail(
+                "chadcn: %s is required by another component but missing " % current +
+                "from the lock; add its url and sha256.",
+            )
+        pending.extend(_extract(rctx, current, current_entry, seen, owners))
 
 def _chadcn_components_repo_impl(rctx):
     lock = json.decode(rctx.read(rctx.attr.lock))
     components = lock.get("components", {})
 
+    seen = {}
+    owners = {}
+    for name in sorted(components.keys()):
+        _process_component(rctx, name, components, seen, owners)
+
+    files_by_target = {}
+    for rel, owner in owners.items():
+        files_by_target.setdefault(owner, []).append(rel)
+
     build_parts = [
-        "# @generated by rules_vite chadcn_components_repo - do not edit",
         "load(\"@rules_vite//private/helpers:js_library.bzl\", \"js_library\")",
         "exports_files(glob([\"components/**\"]))",
+        "exports_files([\"BUILD.bazel\"], [\"//visibility:public\"])",
+        "filegroup(name = \"all_files\", srcs = glob([\"components/**\"]), visibility = [\"//visibility:public\"])",
     ]
-
-    seen = {}
-    for name in sorted(components.keys()):
-        entry = components[name]
-        if not entry.get("url") or not entry.get("sha256"):
-            fail("chadcn lock entry %s needs both url and sha256" % name)
-
-        _files, registry_deps = _extract_component(rctx, name, entry, seen)
-
-        for dep_name in registry_deps:
-            dep_entry = components.get(dep_name)
-            if dep_entry:
-                _extract_component(rctx, dep_name, dep_entry, seen)
-            else:
-                build_parts.append("# registry dependency %s not in lock; add it to consume" % dep_name)
-
+    for name in sorted(files_by_target.keys()):
+        srcs = ",".join(["\"components/%s\"" % rel for rel in sorted(files_by_target[name])])
         build_parts.append(
-            "js_library(name = \"%s\", srcs = glob([\"components/%s/**\"]), visibility = [\"//visibility:public\"])" %
-            (name.replace("/", "_"), name),
+            "js_library(name = \"%s\", srcs = [%s], visibility = [\"//visibility:public\"])" % (name, srcs),
         )
 
     rctx.file("BUILD.bazel", "\n".join(build_parts) + "\n")
@@ -90,8 +182,7 @@ def _chadcn_cli_repo_impl(rctx):
     )
     rctx.file(
         "BUILD.bazel",
-        "# @generated by rules_vite chadcn_cli_repo - do not edit\n" +
-        "exports_files([\"package/bin/cli.js\"])\n" +
+        "exports_files(glob([\"package/**\"]))\n" +
         "filegroup(name = \"cli_files\", srcs = glob([\"package/**\"]), visibility = [\"//visibility:public\"])\n",
     )
 

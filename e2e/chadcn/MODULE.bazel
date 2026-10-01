@@ -6,6 +6,12 @@ module(
 bazel_dep(name = "rules_vite", version = "0.1.0")
 bazel_dep(name = "aspect_rules_js", version = "3.1.2")
 bazel_dep(name = "rules_nodejs", version = "6.7.4")
+
+local_path_override(
+    module_name = "rules_vite",
+    path = "../../",
+)
+
 bazel_dep(name = "aspect_bazel_lib", version = "2.22.5")
 
 node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node", dev_dependency = True)

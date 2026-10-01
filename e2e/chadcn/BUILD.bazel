@@ -1,23 +1,53 @@
-load("@rules_vite//:defs.bzl", "vite_build")
 load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@rules_vite//:defs.bzl", "vite_build", "vitest_test")
 
 npm_link_all_packages(name = "node_modules")
 
 vite_build(
     name = "button_app",
-    srcs = ["main.tsx", "index.html", "cn.ts"],
+    srcs = [
+        "cn.ts",
+        "index.html",
+        "main.tsx",
+    ],
     config = ":vite.config.js",
-    injected_srcs = ["@shadcn//:button"],
-    inject_dir = "components/ui",
-    inject_strip = "components/button/",
+    inject_dir = "components",
+    inject_strip = "components/",
+    injected_srcs = ["@shadcn//:all_files"],
+    visibility = ["//visibility:public"],
     deps = [
-        "//:node_modules/clsx",
-        "//:node_modules/tailwind-merge",
+        "//:node_modules/@vitejs/plugin-react",
         "//:node_modules/class-variance-authority",
+        "//:node_modules/clsx",
+        "//:node_modules/radix-ui",
         "//:node_modules/react",
         "//:node_modules/react-dom",
-        "//:node_modules/radix-ui",
+        "//:node_modules/tailwind-merge",
         "//:node_modules/vite",
     ],
-    visibility = ["//visibility:public"],
+)
+
+vitest_test(
+    name = "render_tests",
+    srcs = [
+        "cn.ts",
+        "index.html",
+        "src/render.test.tsx",
+    ],
+    config = ":vite.config.js",
+    inject_dir = "components",
+    inject_strip = "components/",
+    injected_srcs = ["@shadcn//:all_files"],
+    deps = [
+        "//:node_modules/@vitejs/plugin-react",
+        "//:node_modules/class-variance-authority",
+        "//:node_modules/clsx",
+        "//:node_modules/jsdom",
+        "//:node_modules/radix-ui",
+        "//:node_modules/react",
+        "//:node_modules/react-dom",
+        "//:node_modules/tailwind-merge",
+        "//:node_modules/vite",
+        "//:node_modules/vitest",
+    ],
 )
