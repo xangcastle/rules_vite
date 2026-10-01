@@ -2,52 +2,92 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-//
-// Stages sources, config, and node_modules into an ephemeral directory
-// under TEST_TMPDIR, then runs `vitest run` with the project root
-// pinned to the staged package. Receives a JSON manifest.
-//
 
-const [manifest, nmRootArg, vitestEntry, ...rest] = process.argv.slice(2);
+const [manifestPath, nodeModulesSpec, vitestEntryScript, ...passthroughArgs] = process.argv.slice(2);
 
-if (!manifest || !vitestEntry) {
-    console.error("test_driver: expected <manifest> <nm_root> <vitest_entry> [args...]");
+if (!manifestPath || !nodeModulesSpec || !nodeModulesSpec.includes(":") || !vitestEntryScript) {
+    console.error("test_driver: expected <manifest> <node_modules_spec> <vitest_entry> [args...]");
     process.exit(2);
 }
 
-const manifestAbsolute = path.resolve(manifest);
-const entryAbsolute = path.resolve(vitestEntry);
-
-const spec = JSON.parse(fs.readFileSync(manifestAbsolute, "utf8"));
-
-const stageRoot = process.env.TEST_TMPDIR || os.tmpdir();
-const stage = fs.mkdtempSync(path.join(stageRoot, "rules_vite_test_"));
-
-for (const file of spec.files) {
-    const dst = path.join(stage, file.dst);
-    fs.mkdirSync(path.dirname(dst), { recursive: true });
-    fs.copyFileSync(path.resolve(file.src), dst);
-}
-
-if (spec.links) {
-    fs.mkdirSync(path.join(stage, "node_modules"), { recursive: true });
-    for (const link of spec.links) {
-        const dst = path.join(stage, "node_modules", link.rel);
-        fs.mkdirSync(path.dirname(dst), { recursive: true });
-        fs.symlinkSync(path.resolve(link.src), dst, "dir");
+let runfilesRoot = process.env.RUNFILES_DIR;
+if (!runfilesRoot) {
+    runfilesRoot = path.dirname(new URL(import.meta.url).pathname);
+    while (runfilesRoot !== path.dirname(runfilesRoot) && !path.basename(runfilesRoot).endsWith(".runfiles")) {
+        runfilesRoot = path.dirname(runfilesRoot);
     }
-} else if (spec.nm_root) {
-    fs.symlinkSync(path.resolve(spec.nm_root), path.join(stage, "node_modules"), "dir");
-} else if (nmRootArg && nmRootArg !== "-") {
-    fs.symlinkSync(path.resolve(nmRootArg), path.join(stage, "node_modules"), "dir");
+    if (!path.basename(runfilesRoot).endsWith(".runfiles")) {
+        console.error("test_driver: could not locate the .runfiles root from " + runfilesRoot);
+        process.exit(2);
+    }
+}
+
+const runfilesWorkspace = process.env.TEST_WORKSPACE || "_main";
+
+function resolveWorkspaceRunfilesPath(workspaceRelativePath) {
+    const absolutePath = path.join(runfilesRoot, runfilesWorkspace, workspaceRelativePath);
+    if (!fs.existsSync(absolutePath)) {
+        console.error("test_driver: not found in runfiles at " + absolutePath);
+        process.exit(2);
+    }
+    return absolutePath;
+}
+
+function resolveRunfilesPath(runfilesRelativePath) {
+    const absolutePath = path.join(runfilesRoot, runfilesRelativePath);
+    if (!fs.existsSync(absolutePath)) {
+        console.error("test_driver: not found in runfiles at " + absolutePath);
+        process.exit(2);
+    }
+    return absolutePath;
+}
+
+const manifest = JSON.parse(fs.readFileSync(path.resolve(manifestPath), "utf8"));
+
+const stageDirectory = fs.mkdtempSync(
+    path.join(process.env.TEST_TMPDIR || os.tmpdir(), "rules_vite_test_"),
+);
+for (const stagedFile of manifest.files) {
+    const stagedPath = path.join(stageDirectory, stagedFile.destination);
+    fs.mkdirSync(path.dirname(stagedPath), { recursive: true });
+    fs.writeFileSync(stagedPath, fs.readFileSync(resolveRunfilesPath(stagedFile.runfiles_path)));
+}
+
+const removeStageDirectory = () => {
+    try { fs.rmSync(stageDirectory, { recursive: true, force: true }); } catch {}
+};
+process.on("exit", removeStageDirectory);
+for (const [signalName, exitCode] of [["SIGINT", 130], ["SIGTERM", 143], ["SIGHUP", 129]]) {
+    process.on(signalName, () => {
+        removeStageDirectory();
+        process.exit(exitCode);
+    });
+}
+
+if (nodeModulesSpec.startsWith("node_modules:")) {
+    const nodeModulesRelativePath = nodeModulesSpec.slice("node_modules:".length);
+    fs.symlinkSync(
+        resolveWorkspaceRunfilesPath(nodeModulesRelativePath),
+        path.join(stageDirectory, "node_modules"),
+        "dir",
+    );
+} else if (nodeModulesSpec.startsWith("links:")) {
+    fs.mkdirSync(path.join(stageDirectory, "node_modules"), { recursive: true });
+    for (const linkRelativePath of nodeModulesSpec.slice("links:".length).split(",")) {
+        const packageName = linkRelativePath.startsWith("node_modules/")
+            ? linkRelativePath.slice("node_modules/".length)
+            : linkRelativePath;
+        const packageLinkPath = path.join(stageDirectory, "node_modules", packageName);
+        fs.mkdirSync(path.dirname(packageLinkPath), { recursive: true });
+        fs.symlinkSync(resolveWorkspaceRunfilesPath(linkRelativePath), packageLinkPath, "dir");
+    }
 } else {
-    console.error("test_driver: no node_modules source (links, nm_root, or argv)");
+    console.error("test_driver: unsupported node_modules spec " + nodeModulesSpec);
     process.exit(2);
 }
 
-const stagePackage = spec.package ? path.join(stage, spec.package) : stage;
+const stagedPackageDirectory = manifest.package ? path.join(stageDirectory, manifest.package) : stageDirectory;
+process.chdir(stagedPackageDirectory);
+process.argv = [process.argv[0], "vitest", "run", ...passthroughArgs];
 
-process.chdir(stagePackage);
-process.argv = [process.argv[0], "vitest", "run", ...(spec.extra_args || []), ...rest];
-
-await import(pathToFileURL(entryAbsolute).href);
+await import(pathToFileURL(resolveWorkspaceRunfilesPath(vitestEntryScript)).href);

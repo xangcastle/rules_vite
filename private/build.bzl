@@ -7,43 +7,44 @@ pinned to the staged application. The action runs with block-network and
 produces out_dir as a TreeArtifact output. No shell is involved anywhere.
 """
 
+load("//private:validation.bzl", "vite_build_validation_error")
 load("//private/helpers:node.bzl", "link_package_name", "link_path", "staged_injected_files")
 
 def _vite_build_impl(ctx):
     node = ctx.toolchains["@rules_nodejs//nodejs:toolchain_type"].nodeinfo.node
     vite_entry = link_path(ctx.attr.vite.label, ctx.bin_dir.path) + "/" + ctx.attr.vite_entry
 
-    links = None
-    nm_root = None
+    package_links = None
+    node_modules_root = None
     if ctx.attr.deps:
         if ctx.attr.node_modules:
             fail(
                 "rules_vite %s: pass either node_modules (whole linked tree) " % ctx.label.name +
                 "or deps (per-package links), not both.",
             )
-        links = [
+        package_links = [
             {
-                "rel": link_package_name(dep.label),
-                "src": link_path(dep.label, ctx.bin_dir.path),
+                "package_name": link_package_name(dep.label),
+                "execroot_source": link_path(dep.label, ctx.bin_dir.path),
             }
             for dep in ctx.attr.deps
         ]
     elif ctx.attr.node_modules:
-        nm_root = link_path(ctx.attr.node_modules.label, ctx.bin_dir.path)
+        node_modules_root = link_path(ctx.attr.node_modules.label, ctx.bin_dir.path)
     else:
         fail(
             "rules_vite %s: pass deps (per-package links, the slim " % ctx.label.name +
             "sandbox) or node_modules (the whole linked tree).",
         )
 
-    staged = [{"src": f.path, "dst": f.short_path} for f in ctx.files.srcs]
+    staged = [{"source": f.path, "destination": f.short_path} for f in ctx.files.srcs]
     staged.extend(staged_injected_files(ctx))
 
     manifest = {
         "package": ctx.label.package,
         "config": ctx.file.config.short_path if ctx.attr.config else None,
-        "links": links,
-        "nm_root": nm_root,
+        "package_links": package_links,
+        "node_modules_root": node_modules_root,
         "files": staged,
     }
     if ctx.attr.config:
@@ -52,7 +53,7 @@ def _vite_build_impl(ctx):
                 "rules_vite %s: config must live in the consuming repository " % ctx.label.name +
                 "(got %s); generated configs from other repos are not stageable." % ctx.file.config.short_path,
             )
-        manifest["files"].append({"src": ctx.file.config.path, "dst": ctx.file.config.short_path})
+        manifest["files"].append({"source": ctx.file.config.path, "destination": ctx.file.config.short_path})
     manifest_file = ctx.actions.declare_file(ctx.label.name + "_manifest.json")
     ctx.actions.write(manifest_file, json.encode(manifest))
 
@@ -200,12 +201,9 @@ def vite_build(
     """
     if srcs == None:
         srcs = native.glob(["*.config.*", "*.json", "index.html", "public/**", "src/**"])
-    if not out_dir or out_dir.startswith("/"):
-        fail("vite_build(%s): out_dir must be a package-relative directory, got %r" % (name, out_dir))
-    if type(args) != "list" or not all([type(a) == "string" for a in args]):
-        fail("vite_build(%s): args must be a list of strings (argv), got %r" % (name, args))
-    if deps and node_modules:
-        fail("vite_build(%s): pass either deps or node_modules, not both" % name)
+    error = vite_build_validation_error(name, out_dir, args, deps, node_modules)
+    if error:
+        fail(error)
     if not deps and not node_modules:
         node_modules = "//:node_modules"
     if config and config not in srcs:

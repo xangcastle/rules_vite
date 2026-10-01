@@ -2,77 +2,93 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-//
-// Stages the application tree into an ephemeral directory, links
-// node_modules, and runs `vite build` with the project root pinned to
-// the staged package. Receives a JSON manifest describing sources,
-// config, and node_modules layout. Cleans up the stage on exit.
-//
 
-const [manifest, outDir, viteEntry, ...rest] = process.argv.slice(2);
+const [manifestPath, outputDirectory, viteCliEntry, ...passthroughArgs] = process.argv.slice(2);
 
-if (!manifest || !outDir || !viteEntry) {
-    console.error("vite_driver: expected <manifest> <out_dir> <vite_entry> [vite args...]");
+if (!manifestPath || !outputDirectory || !viteCliEntry) {
+    console.error("vite_driver: expected <manifest> <output_directory> <vite_entry> [vite args...]");
     process.exit(2);
 }
 
-const outAbsolute = path.resolve(outDir);
-const entryAbsolute = path.resolve(viteEntry);
+const outputDirectoryAbsolute = path.resolve(outputDirectory);
+const viteEntryAbsolute = path.resolve(viteCliEntry);
 
-if (!fs.existsSync(entryAbsolute)) {
+if (!fs.existsSync(viteEntryAbsolute)) {
     console.error(
-        "vite_driver: vite entry not found at " + entryAbsolute +
+        "vite_driver: vite entry not found at " + viteEntryAbsolute +
         " - the expected node_modules link convention is " +
         "npm_link_all_packages(name = \"node_modules\") in the consuming package."
     );
     process.exit(2);
 }
 
-const spec = JSON.parse(fs.readFileSync(path.resolve(manifest), "utf8"));
+const manifest = JSON.parse(fs.readFileSync(path.resolve(manifestPath), "utf8"));
 
-const stage = fs.mkdtempSync(path.join(os.tmpdir(), "rules_vite_"));
+const stageDirectory = fs.mkdtempSync(path.join(process.env.TEST_TMPDIR || os.tmpdir(), "rules_vite_"));
 
-if (spec.links) {
-    fs.mkdirSync(path.join(stage, "node_modules"), { recursive: true });
-    for (const link of spec.links) {
-        const dst = path.join(stage, "node_modules", link.rel);
-        fs.mkdirSync(path.dirname(dst), { recursive: true });
-        fs.symlinkSync(path.resolve(link.src), dst, "dir");
+if (manifest.package_links) {
+    fs.mkdirSync(path.join(stageDirectory, "node_modules"), { recursive: true });
+    for (const packageLink of manifest.package_links) {
+        const packageLinkPath = path.join(stageDirectory, "node_modules", packageLink.package_name);
+        fs.mkdirSync(path.dirname(packageLinkPath), { recursive: true });
+        fs.symlinkSync(path.resolve(packageLink.execroot_source), packageLinkPath, "dir");
     }
-} else if (spec.nm_root) {
-    fs.symlinkSync(path.resolve(spec.nm_root), path.join(stage, "node_modules"), "dir");
+} else if (manifest.node_modules_root) {
+    fs.symlinkSync(
+        path.resolve(manifest.node_modules_root),
+        path.join(stageDirectory, "node_modules"),
+        "dir",
+    );
 } else {
-    console.error("vite_driver: manifest carries neither links nor nm_root");
+    console.error("vite_driver: manifest carries neither package_links nor node_modules_root");
     process.exit(2);
 }
 
-for (const file of spec.files) {
-    const dst = path.join(stage, file.dst);
-    fs.mkdirSync(path.dirname(dst), { recursive: true });
-    fs.copyFileSync(path.resolve(file.src), dst);
+for (const stagedFile of manifest.files) {
+    const stagedPath = path.join(stageDirectory, stagedFile.destination);
+    fs.mkdirSync(path.dirname(stagedPath), { recursive: true });
+    fs.writeFileSync(
+            stagedPath,
+            fs.readFileSync(path.resolve(stagedFile.source)),
+        );
 }
 
-const stagePackage = spec.package ? path.join(stage, spec.package) : stage;
+const stagedPackageDirectory = manifest.package ? path.join(stageDirectory, manifest.package) : stageDirectory;
 
-let configArg = [];
-if (spec.config) {
-    const configInStage = path.join(stage, spec.config);
-    const configRelToPkg = path.relative(stagePackage, configInStage);
-    if (configRelToPkg.startsWith("..")) {
+let configArguments = [];
+if (manifest.config) {
+    const configInStage = path.join(stageDirectory, manifest.config);
+    const configRelativeToPackage = path.relative(stagedPackageDirectory, configInStage);
+    if (configRelativeToPackage.startsWith("..")) {
         console.error(
-            `vite_driver: config ${spec.config} lands outside the staged package ${spec.package}`,
+            `vite_driver: config ${manifest.config} lands outside the staged package ${manifest.package}`,
         );
         process.exit(2);
     }
-    configArg = ["--config", configRelToPkg];
+    configArguments = ["--config", configRelativeToPackage];
 }
 
-process.chdir(stagePackage);
-const _cleanup = () => {
-    try { fs.rmSync(stage, { recursive: true, force: true }); } catch {}
+const removeStageDirectory = () => {
+    try { fs.rmSync(stageDirectory, { recursive: true, force: true }); } catch {}
 };
-process.on("exit", _cleanup);
+process.on("exit", removeStageDirectory);
+for (const [signalName, exitCode] of [["SIGINT", 130], ["SIGTERM", 143], ["SIGHUP", 129]]) {
+    process.on(signalName, () => {
+        removeStageDirectory();
+        process.exit(exitCode);
+    });
+}
 
-process.argv = [process.argv[0], "vite", "build", ".", "--outDir", outAbsolute, ...configArg, ...rest];
+process.chdir(stagedPackageDirectory);
+process.argv = [
+    process.argv[0],
+    "vite",
+    "build",
+    ".",
+    "--outDir",
+    outputDirectoryAbsolute,
+    ...configArguments,
+    ...passthroughArgs,
+];
 
-await import(pathToFileURL(entryAbsolute).href);
+await import(pathToFileURL(viteEntryAbsolute).href);

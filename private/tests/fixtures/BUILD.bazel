@@ -1,0 +1,53 @@
+load("@rules_vite//:defs.bzl", "vite_build")
+load("//private/tests:rule_validation_test.bzl", "rule_validation_test_suite")
+
+exports_files([
+    "index.html",
+    "main.js",
+    "vite.config.js",
+    "ui_button.tsx",
+])
+
+filegroup(
+    name = "node_modules/vite",
+    srcs = ["vite.config.js"],
+)
+
+filegroup(
+    name = "node_modules/react",
+    srcs = ["main.js"],
+)
+
+filegroup(
+    name = "ui_fixture",
+    srcs = ["ui_button.tsx"],
+)
+
+vite_build(
+    name = "subject_ok",
+    srcs = [
+        "index.html",
+        "main.js",
+    ],
+    config = "vite.config.js",
+    tags = ["manual"],
+    vite = ":node_modules/vite",
+    deps = [
+        ":node_modules/react",
+        ":node_modules/vite",
+    ],
+)
+
+vite_build(
+    name = "subject_strip",
+    srcs = ["index.html"],
+    config = "vite.config.js",
+    inject_dir = "components/ui",
+    inject_strip = "wrong/prefix/",
+    injected_srcs = [":ui_fixture"],
+    tags = ["manual"],
+    vite = ":node_modules/vite",
+    deps = [":node_modules/vite"],
+)
+
+rule_validation_test_suite()

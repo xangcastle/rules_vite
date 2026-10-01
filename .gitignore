@@ -1,6 +1,8 @@
-node_modules/
+node_modules
 dist/
 bazel-*
 .aspect/
 .DS_Store
 .idea/
+example/apps/*/components
+example/apps/*/.vite/

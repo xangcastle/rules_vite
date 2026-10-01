@@ -13,13 +13,13 @@ load("//private/helpers:node.bzl", "link_rel")
 
 def _node_cli_impl(ctx):
     node = ctx.toolchains["@rules_nodejs//nodejs:toolchain_type"].nodeinfo.node
-    package_rel = link_rel(ctx.attr.package.label)
+    package_path = link_rel(ctx.attr.package.label)
 
     executable = js_stub_binary(
         ctx,
         node,
         ctx.file._driver,
-        embedded_args = [package_rel, ctx.attr.entry] + list(ctx.attr.args),
+        embedded_args = [package_path, ctx.attr.entry] + list(ctx.attr.cli_args),
     )
 
     runfiles = ctx.runfiles(
@@ -48,6 +48,10 @@ _node_cli = rule(
         "env": attr.string_dict(
             doc = "Environment variables exported for the CLI.",
         ),
+        "cli_args": attr.string_list(
+            doc = "Arguments baked into the stub before the passthrough ones; " +
+                  "the implicit args attribute is reserved for bazel run and bazel_env.",
+        ),
         "_driver": attr.label(
             doc = "The node driver that resolves the entry inside runfiles.",
             default = Label("//private/tools:cli_driver.mjs"),
@@ -66,7 +70,7 @@ def node_cli(
         name,
         package,
         entry = "auto",
-        args = [],
+        cli_args = [],
         env = {},
         tags = [],
         visibility = None,
@@ -78,7 +82,8 @@ def node_cli(
         package: The CLI package's node_modules link label.
         entry: The CLI entry script, relative to the package link. shadcn's
             is "dist/index.js".
-        args: Arguments baked before the passthrough "$@".
+        cli_args: Arguments baked into the stub before the passthrough
+            ones bazel run appends.
         env: Environment variables exported for the CLI.
         tags: Standard tags.
         visibility: Standard visibility (None = package default).
@@ -88,7 +93,7 @@ def node_cli(
         name = name,
         package = package,
         entry = entry,
-        args = args,
+        cli_args = cli_args,
         env = env,
         tags = tags,
         visibility = visibility,

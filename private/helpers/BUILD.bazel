@@ -1,3 +1,5 @@
+"""Helpers shared by the rules."""
+
 load("@aspect_bazel_lib//:bzl_library.bzl", "bzl_library")
 
 exports_files([
@@ -10,6 +12,7 @@ bzl_library(
     name = "js_library",
     srcs = ["js_library.bzl"],
     visibility = ["//visibility:public"],
+    deps = ["@aspect_rules_js//js:defs"],
 )
 
 bzl_library(

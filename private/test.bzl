@@ -9,41 +9,36 @@ network access, and without host node_modules.
 
 load("@hermetic_launcher//launcher:lib.bzl", "launcher")
 load("//private/helpers:js_stub_binary.bzl", "js_stub_binary")
-load("//private/helpers:node.bzl", "link_package_name", "link_path", "link_rel", "staged_injected_files")
+load("//private/helpers:node.bzl", "runfiles_node_modules_spec", "staged_injected_files")
 
 def _vitest_test_impl(ctx):
     node = ctx.toolchains["@rules_nodejs//nodejs:toolchain_type"].nodeinfo.node
-    links = None
-    nm_root = None
-    if ctx.attr.deps:
-        if ctx.attr.node_modules:
-            fail(
-                "rules_vite %s: pass either deps or node_modules, not both." % ctx.label.name,
-            )
-        links = [
-            {"rel": link_package_name(dep.label), "src": link_path(dep.label, ctx.bin_dir.path)}
-            for dep in ctx.attr.deps
-        ]
-    elif ctx.attr.node_modules:
-        nm_root = link_rel(ctx.attr.node_modules.label)
-    else:
-        nm_root = "node_modules"
+
+    node_modules_spec = runfiles_node_modules_spec(ctx.attr.node_modules, ctx.attr.deps, ctx.label.name)
 
     if ctx.file.config.short_path.startswith("../"):
         fail(
             "rules_vite %s: config must live in the consuming repository " % ctx.label.name +
             "(got %s); generated configs from other repos are not stageable." % ctx.file.config.short_path,
         )
-    staged = [{"src": f.path, "dst": f.short_path} for f in ctx.files.srcs]
-    staged.append({"src": ctx.file.config.path, "dst": ctx.file.config.short_path})
+    staged = []
+    for f in ctx.files.srcs:
+        staged.append({
+            "source": f.path,
+            "runfiles_path": f.short_path[3:] if f.short_path.startswith("../") else ctx.workspace_name + "/" + f.short_path,
+            "destination": f.short_path,
+        })
+    config_short_path = ctx.file.config.short_path
+    staged.append({
+        "source": ctx.file.config.path,
+        "runfiles_path": config_short_path[3:] if config_short_path.startswith("../") else ctx.workspace_name + "/" + config_short_path,
+        "destination": config_short_path,
+    })
     staged.extend(staged_injected_files(ctx))
 
     manifest = {
         "package": ctx.label.package,
         "config": ctx.file.config.short_path,
-        "links": links,
-        "nm_root": nm_root,
-        "extra_args": list(ctx.attr.args),
         "files": staged,
     }
     manifest_file = ctx.actions.declare_file(ctx.label.name + "_manifest.json")
@@ -54,7 +49,7 @@ def _vitest_test_impl(ctx):
         node,
         ctx.file._driver,
         runfiles = [manifest_file],
-        embedded_args = [nm_root or "-", ctx.attr.vitest_entry],
+        embedded_args = [node_modules_spec, ctx.attr.vitest_entry],
     )
 
     files = [ctx.file.config, node, ctx.file._driver, manifest_file] + list(ctx.files.srcs) + list(ctx.files.injected_srcs)
@@ -70,7 +65,7 @@ _vitest_test = rule(
     implementation = _vitest_test_impl,
     attrs = {
         "vitest_entry": attr.string(
-            doc = "The vitest entry script, cwd-relative (runfiles workspace root).",
+            doc = "The vitest entry script, workspace-relative inside runfiles.",
             default = "node_modules/vitest/vitest.mjs",
         ),
         "config": attr.label(
@@ -97,7 +92,8 @@ _vitest_test = rule(
             doc = "The whole npm_link_all_packages tree; prefer deps.",
         ),
         "deps": attr.label_list(
-            doc = "Extra node_modules-providing labels staged into runfiles (e.g. jsdom).",
+            doc = "Per-package node_modules links (e.g. vitest and the packages " +
+                  "the config imports), linked individually in the stage.",
         ),
         "_driver": attr.label(
             doc = "The node driver that stages the app tree and runs vitest.",
@@ -129,16 +125,11 @@ def vitest_test(
         **kwargs):
     """Runs `vitest run` hermetically via a native (shell-free) launcher stub.
 
-    Note: deps (per-package links) works for BUILD actions but NOT
-    for vitest config resolution - vitest loads the config through its
-    own module graph and cannot see the staged per-package links. Tests
-    that use configs importing npm packages need node_modules (full
-    tree). deps is only useful for providing extra test-only packages.
-
     The test always runs with the `block-network` tag (merged with any
     user-provided tags): vitest resolves everything from runfiles and the
-    staged tree. The standard test attributes (`env`, `size`, `data`)
-    behave as for any bazel test target.
+    staged tree. The standard test attributes (`env`, `size`, `data`,
+    `args`) behave as for any bazel test target; `args` entries are
+    appended by bazel test after the driver's own argv.
 
     Args:
         name: Test target name.
@@ -146,9 +137,10 @@ def vitest_test(
             tests import; `srcs = [":<app>.srcs"]`-style filegroups work).
         config: The vite/vitest config file, mandatory. vitest discovers it
             from the package root of the staged tree.
-        args: Extra argv entries appended after `vitest run`.
+        args: Extra argv entries appended after `vitest run` by bazel test.
             A plain list; no shell interpolation happens anywhere.
-        deps: Extra node_modules-providing labels staged into runfiles.
+        deps: Per-package node_modules links (vitest plus every package the
+            config imports). Linked individually in the staged tree.
         injected_srcs: Files staged into inject_dir inside the
             application - the shared component set.
         inject_dir: Package-relative directory injected_srcs land in.
