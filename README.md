@@ -187,11 +187,15 @@ File.short_path already carries.
 `bazel run` dev servers symlink the linked `node_modules` tree (or the
 per-package `deps` links), the `shared_dir` workspace directory and any
 `shared_srcs` runfiles trees into the real workspace for their lifetime.
-Concurrent servers share those paths through a PID refcount marker
-(`<path>.rules_vite`); the last server to exit removes them. The marker
-is read-modify-write without a lock: two servers starting in the same
-instant can drop a PID from the list, which at worst leaves the link for
-a stale-PID sweep on the next exit. A real `node_modules` directory is
+Concurrent servers share those paths through a refcount marker
+(`<path>.rules_vite`) that also records every file the driver created in
+overlay directories; the last server to exit removes exactly those files
+and never touches anything else. A directory holding untracked files
+refuses to be adopted, and a stale marker (after kill -9) makes the next
+start fail loudly instead of deleting unknown content. The marker is
+read-modify-write without a lock: two servers starting in the same
+instant can drop a PID from the list, which at worst leaves the path for
+manual removal. A real `node_modules` directory is
 never touched. Consumers should gitignore the symlinked paths
 (`node_modules` without a trailing slash also matches the symlink) and
 any `inject_dir` the dev server links into app packages. Gitignored

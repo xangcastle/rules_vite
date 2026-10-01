@@ -49,13 +49,21 @@ function livePids(pids) {
     });
 }
 
-function readMarkerPids(markerPath) {
+function readMarker(markerPath) {
     try {
         const parsed = JSON.parse(fs.readFileSync(markerPath, "utf8"));
-        return Array.isArray(parsed) ? parsed : [];
-    } catch {
-        return [];
-    }
+        if (Array.isArray(parsed)) {
+            return { pids: parsed, files: null };
+        }
+        if (Array.isArray(parsed.pids) && Array.isArray(parsed.files)) {
+            return parsed;
+        }
+    } catch {}
+    return null;
+}
+
+function writeMarker(markerPath, pids, files) {
+    fs.writeFileSync(markerPath, JSON.stringify({ pids, files }));
 }
 
 const acquiredLinks = [];
@@ -92,8 +100,8 @@ function acquireLink(linkPath, runfilesTarget) {
     if (!existing) {
         fs.mkdirSync(path.dirname(linkPath), { recursive: true });
         fs.symlinkSync(runfilesTarget, linkPath, "dir");
-        acquiredLinks.push({ pathToRemove: linkPath, markerPath, recursive: false });
-        fs.writeFileSync(markerPath, JSON.stringify([process.pid]));
+        acquiredLinks.push({ pathToRemove: linkPath, markerPath, kind: "link" });
+        writeMarker(markerPath, [process.pid], []);
         return;
     }
     if (!existing.isSymbolicLink()) {
@@ -108,31 +116,48 @@ function acquireLink(linkPath, runfilesTarget) {
         );
         process.exit(2);
     }
-    acquiredLinks.push({ pathToRemove: linkPath, markerPath, recursive: false });
-    const otherLivePids = livePids(readMarkerPids(markerPath).filter((pid) => pid !== process.pid));
-    fs.writeFileSync(markerPath, JSON.stringify([...otherLivePids, process.pid]));
+    acquiredLinks.push({ pathToRemove: linkPath, markerPath, kind: "link" });
+    const marker = readMarker(markerPath);
+    const pids = marker ? livePids(marker.pids.filter((pid) => pid !== process.pid)) : [];
+    writeMarker(markerPath, [...pids, process.pid], []);
 }
 
 function acquireOverlayDirectory(targetDirectory, sources) {
     const markerPath = targetDirectory + ".rules_vite";
     const existing = fs.lstatSync(targetDirectory, { throwIfNoEntry: false });
-    if (existing && !fs.existsSync(markerPath)) {
-        console.error(
-            "dev_driver: " + targetDirectory + " already exists and is not managed " +
-            "by the dev server. Remove it to let the dev server own it.",
+    let trackedFiles = [];
+    if (existing) {
+        const marker = readMarker(markerPath);
+        if (!marker || marker.files === null) {
+            console.error(
+                "dev_driver: " + targetDirectory + " carries no readable dev-server " +
+                "marker. Remove it manually if you want the dev server to own it.",
+            );
+            process.exit(2);
+        }
+        trackedFiles = marker.files;
+        const untracked = walkFiles(targetDirectory).filter(
+            (relativePath) => !trackedFiles.includes(relativePath),
         );
-        process.exit(2);
-    }
-    if (!existing) {
-        fs.mkdirSync(targetDirectory, { recursive: true });
-        fs.writeFileSync(markerPath, JSON.stringify([process.pid]));
+        if (untracked.length > 0) {
+            console.error(
+                "dev_driver: " + targetDirectory + " contains files the dev server " +
+                "did not create: " + untracked.join(", ") +
+                ". Remove them or the directory to let the dev server own it.",
+            );
+            process.exit(2);
+        }
+        const previousPids = livePids(marker.pids.filter((pid) => pid !== process.pid));
+        writeMarker(markerPath, [...previousPids, process.pid], trackedFiles);
     } else {
-        const otherLivePids = livePids(readMarkerPids(markerPath).filter((pid) => pid !== process.pid));
-        fs.writeFileSync(markerPath, JSON.stringify([...otherLivePids, process.pid]));
+        fs.mkdirSync(targetDirectory, { recursive: true });
+        writeMarker(markerPath, [process.pid], []);
     }
-    acquiredLinks.push({ pathToRemove: targetDirectory, markerPath, recursive: true });
+    acquiredLinks.push({ pathToRemove: targetDirectory, markerPath, kind: "overlay" });
 
     const claimedRelativePaths = new Map();
+    const plannedFiles = [];
+    const planned = [];
     for (const source of sources) {
         const separator = source.indexOf(":");
         const sourceKind = source.slice(0, separator);
@@ -154,37 +179,77 @@ function acquireOverlayDirectory(targetDirectory, sources) {
                 process.exit(2);
             }
             claimedRelativePaths.set(relativePath, sourceRoot);
-            const linkPath = path.join(targetDirectory, relativePath);
-            const sourcePath = path.join(sourceRoot, relativePath);
-            if (sourceKind === "ws") {
-                const existingEntry = fs.lstatSync(linkPath, { throwIfNoEntry: false });
-                if (existingEntry && existingEntry.isSymbolicLink() && fs.readlinkSync(linkPath) === sourcePath) {
-                    continue;
-                }
-                fs.mkdirSync(path.dirname(linkPath), { recursive: true });
-                fs.rmSync(linkPath, { recursive: true, force: true });
-                fs.symlinkSync(sourcePath, linkPath, "file");
-            } else {
-                if (fs.existsSync(linkPath) && fs.readFileSync(linkPath).equals(fs.readFileSync(sourcePath))) {
-                    continue;
-                }
-                fs.mkdirSync(path.dirname(linkPath), { recursive: true });
-                fs.writeFileSync(linkPath, fs.readFileSync(sourcePath));
+            plannedFiles.push(relativePath);
+            planned.push({ relativePath, sourceKind, sourceRoot });
+        }
+    }
+    const overlayMarker = readMarker(markerPath);
+    const survivingPids = livePids(overlayMarker.pids.filter((pid) => pid !== process.pid));
+    writeMarker(markerPath, [...survivingPids, process.pid], plannedFiles);
+
+    for (const { relativePath, sourceKind, sourceRoot } of planned) {
+        const linkPath = path.join(targetDirectory, relativePath);
+        const sourcePath = path.join(sourceRoot, relativePath);
+        if (sourceKind === "ws") {
+            const existingEntry = fs.lstatSync(linkPath, { throwIfNoEntry: false });
+            if (existingEntry && existingEntry.isSymbolicLink() && fs.readlinkSync(linkPath) === sourcePath) {
+                continue;
             }
+            fs.mkdirSync(path.dirname(linkPath), { recursive: true });
+            fs.rmSync(linkPath, { force: true });
+            fs.symlinkSync(sourcePath, linkPath, "file");
+        } else {
+            if (fs.existsSync(linkPath) && fs.readFileSync(linkPath).equals(fs.readFileSync(sourcePath))) {
+                continue;
+            }
+            fs.mkdirSync(path.dirname(linkPath), { recursive: true });
+            fs.writeFileSync(linkPath, fs.readFileSync(sourcePath));
         }
     }
 }
 
-function releaseLinks() {
-    for (const { pathToRemove, markerPath, recursive } of acquiredLinks.reverse()) {
-        try {
-            const otherLivePids = livePids(readMarkerPids(markerPath).filter((pid) => pid !== process.pid));
-            if (otherLivePids.length === 0) {
-                fs.rmSync(pathToRemove, { recursive, force: true });
-                fs.rmSync(markerPath, { force: true });
+function removeEmptyDirectories(rootDirectory) {
+    let empty = true;
+    for (const entry of fs.readdirSync(rootDirectory)) {
+        const absolute = path.join(rootDirectory, entry);
+        if (fs.statSync(absolute).isDirectory()) {
+            if (removeEmptyDirectories(absolute)) {
+                fs.rmdirSync(absolute);
             } else {
-                fs.writeFileSync(markerPath, JSON.stringify(otherLivePids));
+                empty = false;
             }
+        } else {
+            empty = false;
+        }
+    }
+    return empty;
+}
+
+function releaseLinks() {
+    for (const { pathToRemove, markerPath, kind } of acquiredLinks.reverse()) {
+        try {
+            const marker = readMarker(markerPath);
+            if (!marker) {
+                continue;
+            }
+            const otherLivePids = livePids(marker.pids.filter((pid) => pid !== process.pid));
+            if (otherLivePids.length > 0) {
+                writeMarker(markerPath, otherLivePids, marker.files || []);
+                continue;
+            }
+            if (kind === "overlay") {
+                if (marker.files === null) {
+                    continue;
+                }
+                for (const relativePath of marker.files) {
+                    fs.rmSync(path.join(pathToRemove, relativePath), { force: true });
+                }
+                removeEmptyDirectories(pathToRemove);
+                try { fs.rmdirSync(pathToRemove); } catch {}
+            } else {
+                fs.rmSync(pathToRemove, { force: true });
+            }
+            fs.rmSync(markerPath, { force: true });
         } catch {}
     }
 }
