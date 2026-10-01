@@ -1,0 +1,8 @@
+filegroup(
+    name = "src",
+    srcs = [
+        "lib/cn.ts",
+        "styles/globals.css",
+    ],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,88 @@
+{
+  "components": {
+    "button": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/button.json",
+      "sha256": "4b8d7d848742727973c1b088af8d15f0b628272a1316f2d2fa344e73ddff9e9c"
+    },
+    "card": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/card.json",
+      "sha256": "c7ebaa49ba2a0613838558f3892c5007523c2dc26d6b36a244145d454a796106"
+    },
+    "input": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/input.json",
+      "sha256": "b1fffa12ba72ce30a291749012b47235eda110648b8106725ced22b5b31c8f1b"
+    },
+    "label": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/label.json",
+      "sha256": "b03d6bc91da205758df87c5403d74bae4d742f1f4ac5ae0b94ad7a29ab6350ea"
+    },
+    "badge": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/badge.json",
+      "sha256": "0f988b37cf1c56e7ecc83b1dcf24c9af4e73ce4341da5caf2c9d9b07a551319b"
+    },
+    "separator": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/separator.json",
+      "sha256": "4242a9fe839cae9083acff1280b7cccfda10e97bbc83283aed12d2d12bebdc6a"
+    },
+    "tabs": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/tabs.json",
+      "sha256": "49320e6dcf56570753bb14ed3f5d66acf07d12e183c0e9024466995b25be5b1d"
+    },
+    "sidebar": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/sidebar.json",
+      "sha256": "421f1735955361a12466c5c6e7d4c1124cc7f76422b4fdd5dcdf8451b8ae4052"
+    },
+    "table": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/table.json",
+      "sha256": "35a45f90ee92883533c4c1029212d38bd263694e90ea54fbfaf66a099f7d3cc4"
+    },
+    "accordion": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/accordion.json",
+      "sha256": "93254d43d27259998b10c7bb5261f85bdc44509d46309a5c10a1e5d126a8d279"
+    },
+    "dialog": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/dialog.json",
+      "sha256": "0115e3a57aa55a978c5fed0d77f7e98edd694215aae3e569def3fff722ba9f26"
+    },
+    "tooltip": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/tooltip.json",
+      "sha256": "1b7b452b34beab05b22bd653963abd1c88ebd8e9ebcc89dcaebf4ac4938c929e"
+    },
+    "avatar": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/avatar.json",
+      "sha256": "f843fc6e2d2fea1337bdcdc8b70c5189f84562d87f8e852e994f4bbdd7cd229d"
+    },
+    "dropdown-menu": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/dropdown-menu.json",
+      "sha256": "235b1231cf71d94225eccd6c19117e7fa7b09cf256d23a199d63aee53265fd52"
+    },
+    "switch": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/switch.json",
+      "sha256": "cc526c3a4827be315be746355a988e22dacc99d663ed31924fd30c2507cdc005"
+    },
+    "select": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/select.json",
+      "sha256": "ca3189ea8101a04f144b6d0f0e7330841639bfa5f4d57e7cca0894d39b30817b"
+    },
+    "textarea": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/textarea.json",
+      "sha256": "2367d3964326b19ca2355f872d08153c86932abd4b103b5fd02039a3f2cb8ae5"
+    },
+    "sheet": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/sheet.json",
+      "sha256": "bdf118300491675f05a9181af491217ba690929338aefd108437c2b07d25432f"
+    },
+    "skeleton": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/skeleton.json",
+      "sha256": "1ed4d99f9d632d9697a054eefcd19932abd68cef7808407986f6e14da401edf7"
+    },
+    "use-mobile": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/use-mobile.json",
+      "sha256": "4cd4736a08751c89e2ebc10f9d329c430ddb6194f46bf848e5ed470c0407bca1"
+    },
+    "utils": {
+      "url": "https://ui.shadcn.com/r/styles/new-york-v4/utils.json",
+      "sha256": "c22651d566e943525910eb81a31a84eed9ad8ae24c6cdfa3ec609cc0fb04b0d5"
+    }
+  }
+}

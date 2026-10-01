@@ -1,0 +1,44 @@
+load("@rules_vite//:defs.bzl", "vite_build", "vite_run")
+
+vite_build(
+    name = "app",
+    srcs = glob(["src/**"]) + [
+        "index.html",
+        "vite.config.ts",
+    ],
+    config = "vite.config.ts",
+    inject_dir = "components",
+    inject_strip = "components/",
+    injected_srcs = [
+        "//components:src",
+        "@shadcn//:all_files",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:node_modules/@tailwindcss/vite",
+        "//:node_modules/@vitejs/plugin-react",
+        "//:node_modules/class-variance-authority",
+        "//:node_modules/clsx",
+        "//:node_modules/lucide-react",
+        "//:node_modules/radix-ui",
+        "//:node_modules/react",
+        "//:node_modules/react-dom",
+        "//:node_modules/tailwind-merge",
+        "//:node_modules/tailwindcss",
+        "//:node_modules/tw-animate-css",
+        "//:node_modules/vite",
+    ],
+)
+
+vite_run(
+    name = "app.dev",
+    args = [
+        "--host",
+        "--port",
+        "5303",
+        "--strictPort",
+    ],
+    inject_dir = "components",
+    shared_dir = "components",
+    shared_srcs = ["@shadcn//:all_files"],
+)
