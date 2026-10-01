@@ -141,7 +141,7 @@ def vite_run(
         shared_dir: Workspace-relative directory whose files are linked
             (individually, live for HMR) at inject_dir.
         shared_srcs: Labels whose files are linked at inject_dir from
-            runfiles; use for generated shared trees (e.g. a chadcn
+            runfiles; use for generated shared trees (e.g. a shadcn
             component set).
         env: Environment variables for the dev server (e.g. VITE_* flags
             consumed by the app's vite config).

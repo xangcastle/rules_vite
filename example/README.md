@@ -10,7 +10,7 @@ it.
 
 ```
 MODULE.bazel            bazel_dep rules_vite, node + npm toolchains,
-                        chadcn extension pinned by shadcn-lock.json
+                        shadcn extension pinned by shadcn-lock.json
 BUILD.bazel             npm_link_all_packages (one linked tree for all apps)
 package.json            every dependency of every app
 pnpm-lock.yaml          the one lockfile
@@ -26,7 +26,7 @@ apps/
   settings/             dialogs, dropdowns, switches, selects, tooltips
 ```
 
-The shared component set comes from the chadcn extension: the lock pins
+The shared component set comes from the shadcn extension: the lock pins
 each registry JSON by sha256, the extension extracts the sources into a
 tree that mirrors the registry layout (ui/, lib/, hooks/) with
 registry-internal imports rewritten to relative paths, and every app

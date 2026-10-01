@@ -111,7 +111,7 @@ directory is set to `BUILD_WORKSPACE_DIRECTORY`:
 
 ```starlark
 node_cli(
-    name = "chadcn",
+    name = "shadcn",
     package = "//:node_modules/shadcn",
 )
 ```
@@ -138,9 +138,9 @@ component set, one lockfile - lives in [example/](example/README.md).
 ## shadcn components
 
 ```starlark
-chadcn = use_extension("@rules_vite//chadcn:extensions.bzl", "chadcn")
-chadcn.components(name = "shadcn", lock = "//:shadcn-lock.json")
-use_repo(chadcn, "shadcn")
+shadcn = use_extension("@rules_vite//shadcn:extensions.bzl", "shadcn")
+shadcn.components(name = "shadcn", lock = "//:shadcn-lock.json")
+use_repo(shadcn, "shadcn")
 ```
 
 Each locked component is extracted from the registry JSON into a tree
@@ -242,10 +242,10 @@ shared tree.
 
 ```
 defs.bzl                    public API
-chadcn/                     module extension + repo rules
+shadcn/                     module extension + repo rules
 docs/api/defs.md            generated API reference
 example/                    five-app monorepo sharing one component set
-e2e/{vanilla,react,chadcn}  standalone consumer modules
+e2e/{vanilla,react,shadcn}  standalone consumer modules
 private/
   build.bzl, run.bzl, test.bzl, cli.bzl
   helpers/                  js_stub_binary, node, js_library

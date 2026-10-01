@@ -112,7 +112,7 @@ changes do not - that is what HMR is for.
 | <a id="vite_run-args"></a>args |  Arguments appended to the vite CLI (e.g. ["--host", "--port", "5173"]). Passed by bazel run after the driver's own argv; a plain list, no shell interpolation.   |  `[]` |
 | <a id="vite_run-inject_dir"></a>inject_dir |  Package-relative directory the shared sources are linked at for the dev server overlay.   |  `""` |
 | <a id="vite_run-shared_dir"></a>shared_dir |  Workspace-relative directory whose files are linked (individually, live for HMR) at inject_dir.   |  `""` |
-| <a id="vite_run-shared_srcs"></a>shared_srcs |  Labels whose files are linked at inject_dir from runfiles; use for generated shared trees (e.g. a chadcn component set).   |  `[]` |
+| <a id="vite_run-shared_srcs"></a>shared_srcs |  Labels whose files are linked at inject_dir from runfiles; use for generated shared trees (e.g. a shadcn component set).   |  `[]` |
 | <a id="vite_run-env"></a>env |  Environment variables for the dev server (e.g. VITE_* flags consumed by the app's vite config).   |  `{}` |
 | <a id="vite_run-deps"></a>deps |  Per-package node_modules links; linked individually under node_modules in the workspace for the server's lifetime.   |  `[]` |
 | <a id="vite_run-node_modules"></a>node_modules |  The npm_link_all_packages target of the consuming workspace ("//:node_modules").   |  `"//:node_modules"` |

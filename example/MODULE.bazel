@@ -24,9 +24,9 @@ npm.npm_translate_lock(
 )
 use_repo(npm, "npm")
 
-chadcn = use_extension("@rules_vite//chadcn:extensions.bzl", "chadcn")
-chadcn.components(
+shadcn = use_extension("@rules_vite//shadcn:extensions.bzl", "shadcn")
+shadcn.components(
     name = "shadcn",
     lock = "//:shadcn-lock.json",
 )
-use_repo(chadcn, "shadcn")
+use_repo(shadcn, "shadcn")

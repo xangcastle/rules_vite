@@ -24,9 +24,9 @@ jobs:
         run: bazel test //private/... //docs/...
       - name: Consumer modules
         run: |
-          for module in e2e/vanilla e2e/react e2e/chadcn example; do
+          for module in e2e/vanilla e2e/react e2e/shadcn example; do
             (cd "$module" && bazel build //...)
           done
-          for module in e2e/react e2e/chadcn example; do
+          for module in e2e/react e2e/shadcn example; do
             (cd "$module" && bazel test //...)
           done

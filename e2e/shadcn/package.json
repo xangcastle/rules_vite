@@ -1,5 +1,5 @@
 {
-    "name": "chadcn-example",
+    "name": "shadcn-example",
     "private": true,
     "dependencies": {
         "class-variance-authority": "^0.7.0",

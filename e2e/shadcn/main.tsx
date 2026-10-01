@@ -9,7 +9,7 @@ createRoot(document.querySelector("#root")!).render(
   <Card>
     <CardHeader>
       <CardTitle>Lock-pinned shadcn <Badge>new</Badge></CardTitle>
-      <CardDescription>Extracted from the registry by the chadcn extension.</CardDescription>
+      <CardDescription>Extracted from the registry by the shadcn extension.</CardDescription>
     </CardHeader>
     <CardContent>
       <Label htmlFor="name">Name</Label>

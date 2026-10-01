@@ -15,9 +15,9 @@ bazel_dep(name = "bazel_skylib", version = "1.9.0", dev_dependency = True)
 bazel_dep(name = "aspect_gazelle_prebuilt", version = "0.0.18", dev_dependency = True)
 bazel_dep(name = "stardoc", version = "0.8.1", dev_dependency = True)
 
-chadcn = use_extension("@rules_vite//chadcn:extensions.bzl", "chadcn", dev_dependency = True)
-chadcn.components(
+shadcn = use_extension("@rules_vite//shadcn:extensions.bzl", "shadcn", dev_dependency = True)
+shadcn.components(
     name = "shadcn",
     lock = "//private/snapshots:lock.json",
 )
-use_repo(chadcn, "shadcn")
+use_repo(shadcn, "shadcn")

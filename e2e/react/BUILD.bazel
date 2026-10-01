@@ -41,6 +41,6 @@ vite_run(
 )
 
 node_cli(
-    name = "chadcn",
+    name = "shadcn",
     package = "//:node_modules/shadcn",
 )

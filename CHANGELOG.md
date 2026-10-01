@@ -13,7 +13,7 @@ Initial release.
   launcher stub (`hermetic_launcher` - the same mechanism rules_pio uses);
   the stub runs node on a staging driver, argv lists throughout, no shell.
 - `node_cli`: any npm CLI package as a hermetic executable - native
-  stub, node-direct, "$@" passthrough; first consumer is shadcn/chadcn
+  stub, node-direct, "$@" passthrough; first consumer is shadcn
   (verified `--help`/`--version` through the stub), shaped for bazel_env
   tool exposure like rules_pio's uv.
 - `vite_run`: `bazel run` dev server with NATIVE vite HMR - the real

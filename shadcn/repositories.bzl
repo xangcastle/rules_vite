@@ -1,10 +1,10 @@
 """Repository rules for shadcn component downloads.
 
-chadcn_components_repo downloads registry JSON pinned by sha256, extracts
+shadcn_components_repo downloads registry JSON pinned by sha256, extracts
 the component source files from files[].content into a tree that mirrors
 the registry layout (ui/, lib/, hooks/), rewrites registry-internal
 imports to relative paths, and exposes the tree both as one filegroup and
-as per-component js_library targets. chadcn_cli_repo fetches the shadcn
+as per-component js_library targets. shadcn_cli_repo fetches the shadcn
 CLI npm tarball.
 """
 
@@ -14,7 +14,7 @@ def _lock_urls(entry, name):
         return urls
     if entry.get("url"):
         return [entry["url"]]
-    fail("chadcn lock entry %s needs url or urls" % name)
+    fail("shadcn lock entry %s needs url or urls" % name)
 
 def _registry_rel(path):
     """Strips the leading registry/<style>/ segments from a registry file path."""
@@ -86,7 +86,7 @@ def _extract(rctx, name, entry, seen, owners):
         output = "_raw/%s.json" % name,
     )
     if not raw.success:
-        fail("chadcn: failed to download %s from %s" % (name, urls[0]))
+        fail("shadcn: failed to download %s from %s" % (name, urls[0]))
 
     spec = json.decode(rctx.read("_raw/%s.json" % name))
 
@@ -97,7 +97,7 @@ def _extract(rctx, name, entry, seen, owners):
         rel = _registry_rel(f["path"])
         if rel in owners and owners[rel] != name:
             fail(
-                "chadcn: %s and %s both provide %s; the lock entries overlap." % (owners[rel], name, rel),
+                "shadcn: %s and %s both provide %s; the lock entries overlap." % (owners[rel], name, rel),
             )
         owners[rel] = name
         rctx.file(
@@ -115,11 +115,11 @@ def _process_component(rctx, name, components, seen, owners):
     entry = components.get(name)
     if not entry:
         fail(
-            "chadcn: %s is required by another component but missing " % name +
+            "shadcn: %s is required by another component but missing " % name +
             "from the lock; add its url and sha256.",
         )
     if not entry.get("sha256"):
-        fail("chadcn lock entry %s needs sha256" % name)
+        fail("shadcn lock entry %s needs sha256" % name)
     pending = list(_extract(rctx, name, entry, seen, owners))
     for _ in range(64):
         if not pending:
@@ -130,12 +130,12 @@ def _process_component(rctx, name, components, seen, owners):
         current_entry = components.get(current)
         if not current_entry:
             fail(
-                "chadcn: %s is required by another component but missing " % current +
+                "shadcn: %s is required by another component but missing " % current +
                 "from the lock; add its url and sha256.",
             )
         pending.extend(_extract(rctx, current, current_entry, seen, owners))
 
-def _chadcn_components_repo_impl(rctx):
+def _shadcn_components_repo_impl(rctx):
     lock = json.decode(rctx.read(rctx.attr.lock))
     components = lock.get("components", {})
 
@@ -163,8 +163,8 @@ def _chadcn_components_repo_impl(rctx):
     rctx.file("BUILD.bazel", "\n".join(build_parts) + "\n")
     rctx.delete("_raw")
 
-chadcn_components_repo = repository_rule(
-    implementation = _chadcn_components_repo_impl,
+shadcn_components_repo = repository_rule(
+    implementation = _shadcn_components_repo_impl,
     attrs = {
         "lock": attr.label(
             mandatory = True,
@@ -173,9 +173,9 @@ chadcn_components_repo = repository_rule(
     },
 )
 
-def _chadcn_cli_repo_impl(rctx):
+def _shadcn_cli_repo_impl(rctx):
     if not rctx.attr.sha256:
-        fail("chadcn cli requires the npm tarball sha256; pin it in the tag")
+        fail("shadcn cli requires the npm tarball sha256; pin it in the tag")
     rctx.download_and_extract(
         url = "https://registry.npmjs.org/shadcn/-/shadcn-%s.tgz" % rctx.attr.version,
         sha256 = rctx.attr.sha256,
@@ -186,8 +186,8 @@ def _chadcn_cli_repo_impl(rctx):
         "filegroup(name = \"cli_files\", srcs = glob([\"package/**\"]), visibility = [\"//visibility:public\"])\n",
     )
 
-chadcn_cli_repo = repository_rule(
-    implementation = _chadcn_cli_repo_impl,
+shadcn_cli_repo = repository_rule(
+    implementation = _shadcn_cli_repo_impl,
     attrs = {
         "version": attr.string(mandatory = True),
         "sha256": attr.string(mandatory = True),
