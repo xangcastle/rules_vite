@@ -18,7 +18,7 @@ The default `node_modules` label follows the standard rules_js convention
 <pre>
 load("@rules_vite//:defs.bzl", "node_cli")
 
-node_cli(<a href="#node_cli-name">name</a>, <a href="#node_cli-package">package</a>, <a href="#node_cli-entry">entry</a>, <a href="#node_cli-args">args</a>, <a href="#node_cli-env">env</a>, <a href="#node_cli-tags">tags</a>, <a href="#node_cli-visibility">visibility</a>, <a href="#node_cli-kwargs">**kwargs</a>)
+node_cli(<a href="#node_cli-name">name</a>, <a href="#node_cli-package">package</a>, <a href="#node_cli-entry">entry</a>, <a href="#node_cli-cli_args">cli_args</a>, <a href="#node_cli-env">env</a>, <a href="#node_cli-tags">tags</a>, <a href="#node_cli-visibility">visibility</a>, <a href="#node_cli-kwargs">**kwargs</a>)
 </pre>
 
 Exposes a node CLI package as a hermetic `bazel run` executable.
@@ -31,7 +31,7 @@ Exposes a node CLI package as a hermetic `bazel run` executable.
 | <a id="node_cli-name"></a>name |  Target name.   |  none |
 | <a id="node_cli-package"></a>package |  The CLI package's node_modules link label.   |  none |
 | <a id="node_cli-entry"></a>entry |  The CLI entry script, relative to the package link. shadcn's is "dist/index.js".   |  `"auto"` |
-| <a id="node_cli-args"></a>args |  Arguments baked before the passthrough "$@".   |  `[]` |
+| <a id="node_cli-cli_args"></a>cli_args |  Arguments baked into the stub before the passthrough ones bazel run appends.   |  `[]` |
 | <a id="node_cli-env"></a>env |  Environment variables exported for the CLI.   |  `{}` |
 | <a id="node_cli-tags"></a>tags |  Standard tags.   |  `[]` |
 | <a id="node_cli-visibility"></a>visibility |  Standard visibility (None = package default).   |  `None` |
@@ -87,19 +87,20 @@ TreeArtifact).
 <pre>
 load("@rules_vite//:defs.bzl", "vite_run")
 
-vite_run(<a href="#vite_run-name">name</a>, <a href="#vite_run-args">args</a>, <a href="#vite_run-inject_dir">inject_dir</a>, <a href="#vite_run-shared_dir">shared_dir</a>, <a href="#vite_run-env">env</a>, <a href="#vite_run-deps">deps</a>, <a href="#vite_run-node_modules">node_modules</a>, <a href="#vite_run-vite_entry">vite_entry</a>, <a href="#vite_run-tags">tags</a>, <a href="#vite_run-visibility">visibility</a>,
-         <a href="#vite_run-kwargs">**kwargs</a>)
+vite_run(<a href="#vite_run-name">name</a>, <a href="#vite_run-args">args</a>, <a href="#vite_run-inject_dir">inject_dir</a>, <a href="#vite_run-shared_dir">shared_dir</a>, <a href="#vite_run-shared_srcs">shared_srcs</a>, <a href="#vite_run-env">env</a>, <a href="#vite_run-deps">deps</a>, <a href="#vite_run-node_modules">node_modules</a>, <a href="#vite_run-vite_entry">vite_entry</a>, <a href="#vite_run-tags">tags</a>,
+         <a href="#vite_run-visibility">visibility</a>, <a href="#vite_run-kwargs">**kwargs</a>)
 </pre>
 
 Runs the vite dev server (`bazel run`) with native HMR.
 
 Sources are served live from the workspace - vite's own watcher and
 websocket HMR with no intermediate process restarts. The linked
-node_modules tree is
-symlinked into the workspace for the lifetime of the server and
-removed on exit; an existing real node_modules directory is respected
-and left untouched. Dependency (lockfile/BUILD) changes need a
-server restart; source changes do not - that is what HMR is for.
+node_modules tree is symlinked into the workspace for the lifetime of
+the server and removed on exit; an existing real node_modules
+directory is respected and left untouched. Concurrent servers on the
+same workspace share the link; the last one to exit removes it.
+Dependency (lockfile/BUILD) changes need a server restart; source
+changes do not - that is what HMR is for.
 
 
 **PARAMETERS**
@@ -108,11 +109,12 @@ server restart; source changes do not - that is what HMR is for.
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
 | <a id="vite_run-name"></a>name |  Target name.   |  none |
-| <a id="vite_run-args"></a>args |  Arguments passed to the vite CLI (e.g. ["--host", "--port", "5173"]). A plain list; no shell interpolation happens.   |  `[]` |
+| <a id="vite_run-args"></a>args |  Arguments appended to the vite CLI (e.g. ["--host", "--port", "5173"]). Passed by bazel run after the driver's own argv; a plain list, no shell interpolation.   |  `[]` |
 | <a id="vite_run-inject_dir"></a>inject_dir |  Package-relative directory the shared sources are linked at for the dev server overlay.   |  `""` |
-| <a id="vite_run-shared_dir"></a>shared_dir |  Workspace-relative real directory linked at inject_dir.   |  `""` |
+| <a id="vite_run-shared_dir"></a>shared_dir |  Workspace-relative directory whose files are linked (individually, live for HMR) at inject_dir.   |  `""` |
+| <a id="vite_run-shared_srcs"></a>shared_srcs |  Labels whose files are linked at inject_dir from runfiles; use for generated shared trees (e.g. a chadcn component set).   |  `[]` |
 | <a id="vite_run-env"></a>env |  Environment variables for the dev server (e.g. VITE_* flags consumed by the app's vite config).   |  `{}` |
-| <a id="vite_run-deps"></a>deps |  Extra node_modules-providing labels staged into runfiles.   |  `[]` |
+| <a id="vite_run-deps"></a>deps |  Per-package node_modules links; linked individually under node_modules in the workspace for the server's lifetime.   |  `[]` |
 | <a id="vite_run-node_modules"></a>node_modules |  The npm_link_all_packages target of the consuming workspace ("//:node_modules").   |  `"//:node_modules"` |
 | <a id="vite_run-vite_entry"></a>vite_entry |  vite CLI entry script, workspace-relative inside runfiles; override only for exotic package manager layouts.   |  `"node_modules/vite/bin/vite.js"` |
 | <a id="vite_run-tags"></a>tags |  Standard tags.   |  `[]` |
@@ -133,16 +135,11 @@ vitest_test(<a href="#vitest_test-name">name</a>, <a href="#vitest_test-srcs">sr
 
 Runs `vitest run` hermetically via a native (shell-free) launcher stub.
 
-Note: deps (per-package links) works for BUILD actions but NOT
-for vitest config resolution - vitest loads the config through its
-own module graph and cannot see the staged per-package links. Tests
-that use configs importing npm packages need node_modules (full
-tree). deps is only useful for providing extra test-only packages.
-
 The test always runs with the `block-network` tag (merged with any
 user-provided tags): vitest resolves everything from runfiles and the
-staged tree. The standard test attributes (`env`, `size`, `data`)
-behave as for any bazel test target.
+staged tree. The standard test attributes (`env`, `size`, `data`,
+`args`) behave as for any bazel test target; `args` entries are
+appended by bazel test after the driver's own argv.
 
 
 **PARAMETERS**
@@ -153,8 +150,8 @@ behave as for any bazel test target.
 | <a id="vitest_test-name"></a>name |  Test target name.   |  none |
 | <a id="vitest_test-srcs"></a>srcs |  Application sources (must include the config and any file the tests import; `srcs = [":<app>.srcs"]`-style filegroups work).   |  none |
 | <a id="vitest_test-config"></a>config |  The vite/vitest config file, mandatory. vitest discovers it from the package root of the staged tree.   |  none |
-| <a id="vitest_test-args"></a>args |  Extra argv entries appended after `vitest run`. A plain list; no shell interpolation happens anywhere.   |  `[]` |
-| <a id="vitest_test-deps"></a>deps |  Extra node_modules-providing labels staged into runfiles.   |  `[]` |
+| <a id="vitest_test-args"></a>args |  Extra argv entries appended after `vitest run` by bazel test. A plain list; no shell interpolation happens anywhere.   |  `[]` |
+| <a id="vitest_test-deps"></a>deps |  Per-package node_modules links (vitest plus every package the config imports). Linked individually in the staged tree.   |  `[]` |
 | <a id="vitest_test-injected_srcs"></a>injected_srcs |  Files staged into inject_dir inside the application - the shared component set.   |  `[]` |
 | <a id="vitest_test-inject_dir"></a>inject_dir |  Package-relative directory injected_srcs land in.   |  `""` |
 | <a id="vitest_test-inject_strip"></a>inject_strip |  Workspace path prefix stripped so subdirectories survive the injection.   |  `""` |

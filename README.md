@@ -132,7 +132,8 @@ vite_build(
 ```
 
 The dev server links the shared directory at the same path via a
-workspace symlink.
+workspace symlink. A complete working setup - five applications, one
+component set, one lockfile - lives in [example/](example/README.md).
 
 ## shadcn components
 
@@ -142,9 +143,32 @@ chadcn.components(name = "shadcn", lock = "//:shadcn-lock.json")
 use_repo(chadcn, "shadcn")
 ```
 
-Each locked component is extracted from the registry JSON into a real
-source file exposed as a js_library (`@shadcn//:button`). Components are
-pinned by sha256 in the lock file.
+Each locked component is extracted from the registry JSON into a tree
+that mirrors the registry layout (`@shadcn//:all_files`; also one
+js_library per component, `@shadcn//:button`), with registry-internal
+imports rewritten to relative paths. Components are pinned by sha256 in
+the lock file. A lock entry missing a component that another one
+declares as a registry dependency fails the repository fetch with the
+name to add.
+
+ui.shadcn.com is mutable: a republished JSON keeps its URL but changes
+its bytes, and cold builds break on the sha mismatch. Pin entries with
+`urls` (tried in order) and keep the upstream registry behind a mirror
+you control:
+
+```json
+{
+  "components": {
+    "button": {
+      "urls": [
+        "https://mirrors.example.com/shadcn/new-york-v4/button.json",
+        "https://ui.shadcn.com/r/styles/new-york-v4/button.json"
+      ],
+      "sha256": "..."
+    }
+  }
+}
+```
 
 ## Labels
 
@@ -154,20 +178,36 @@ pinned by sha256 in the lock file.
 | `node` | toolchain | Resolved from the registered rules_nodejs toolchain. |
 
 Both are overridable. Nested workspace packages point at their own linked
-tree by overriding `node_modules`.
+tree by overriding `node_modules`. Runfiles address every repository,
+including external ones, by canonical name - exactly the form
+File.short_path already carries.
+
+## Dev server links
+
+`bazel run` dev servers symlink the linked `node_modules` tree (or the
+per-package `deps` links), the `shared_dir` workspace directory and any
+`shared_srcs` runfiles trees into the real workspace for their lifetime.
+Concurrent servers share those paths through a PID refcount marker
+(`<path>.rules_vite`); the last server to exit removes them. The marker
+is read-modify-write without a lock: two servers starting in the same
+instant can drop a PID from the list, which at worst leaves the link for
+a stale-PID sweep on the next exit. A real `node_modules` directory is
+never touched. Consumers should gitignore the symlinked paths
+(`node_modules` without a trailing slash also matches the symlink) and
+any `inject_dir` the dev server links into app packages. Gitignored
+paths are also invisible to Tailwind v4's automatic content detection,
+so a stylesheet that must style overlay-injected components pins them
+with an explicit `@source` (the example's globals.css uses
+`@source "../"`).
 
 ## Known limitations
 
-- `deps` in `vitest_test` does not support configs that import npm
-  packages: vitest loads the config through its own module graph, not
-  through the staged per-package links. Use `node_modules` for tests
-  whose configs import plugins.
-- `deps` in `vite_run` is accepted but the dev server needs a full
-  `node_modules` tree for the workspace symlink.
 - `block-network` is enforced by the local sandbox; remote executors
   honor it only if the platform supports network isolation.
-- The build driver's staging directory is cleaned via process exit
-  handlers; a `kill -9` may leave a temp directory.
+- Staging directories are cleaned by exit and signal handlers; `kill -9`
+  still leaks the temp directory.
+- On macOS the staging directory lives in TMPDIR, outside the sandbox;
+  contents are cleaned but never sandbox-confined.
 
 ## Repo layout
 
@@ -175,6 +215,7 @@ tree by overriding `node_modules`.
 defs.bzl                    public API
 chadcn/                     module extension + repo rules
 docs/api/defs.md            generated API reference
+example/                    five-app monorepo sharing one component set
 e2e/{vanilla,react,chadcn}  standalone consumer modules
 private/
   build.bzl, run.bzl, test.bzl, cli.bzl
@@ -196,5 +237,6 @@ bazel test //private/...
 
 ## Compatibility
 
-Bazel 8+ (bzlmod), macOS and Linux. Verified with Bazel 8.7.0 and 9.2.0,
-aspect_rules_js 3.x, vite 7.3.1, vitest 3.2.x.
+Bazel 8+ (bzlmod), macOS and Linux. CI (Bazel 8.7.0 and 9.2.0, ubuntu and
+macos) covers vite 7.3.1 and 8.3.1, vitest 3.2.4 and 5.0.3 across the
+consumer modules under `e2e/` and `example/`.

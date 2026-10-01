@@ -5,13 +5,23 @@ exports_files([
     "cli.bzl",
     "run.bzl",
     "test.bzl",
+    "validation.bzl",
 ])
 
 bzl_library(
     name = "build",
     srcs = ["build.bzl"],
     visibility = ["//visibility:public"],
-    deps = ["//private/helpers:node"],
+    deps = [
+        "//private:validation",
+        "//private/helpers:node",
+    ],
+)
+
+bzl_library(
+    name = "validation",
+    srcs = ["validation.bzl"],
+    visibility = ["//visibility:public"],
 )
 
 bzl_library(
