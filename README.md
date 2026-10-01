@@ -195,14 +195,39 @@ refuses to be adopted, and a stale marker (after kill -9) makes the next
 start fail loudly instead of deleting unknown content. The marker is
 read-modify-write without a lock: two servers starting in the same
 instant can drop a PID from the list, which at worst leaves the path for
-manual removal. A real `node_modules` directory is
-never touched. Consumers should gitignore the symlinked paths
-(`node_modules` without a trailing slash also matches the symlink) and
-any `inject_dir` the dev server links into app packages. Gitignored
-paths are also invisible to Tailwind v4's automatic content detection,
-so a stylesheet that must style overlay-injected components pins them
-with an explicit `@source` (the example's globals.css uses
-`@source "../"`).
+manual removal (marker writes are atomic, so a reader never sees a torn
+file). A real `node_modules` directory is never touched.
+
+Removal is conditional: a tracked entry goes away only while it is still a
+symlink, or a runfiles copy with its original bytes. An editor's "safe
+write" (JetBrains, vim with `backupcopy=no`) replaces the symlink with a
+regular file, so that edit never reached the shared source; the server
+keeps such files and names them on exit, and the next start refuses the
+directory until the change is moved where it belongs. Overlays never
+mirror `BUILD`, `BUILD.bazel`, `MODULE.bazel`, `WORKSPACE` or `REPO.bazel`,
+so no phantom Bazel package appears inside the app while a server runs.
+
+vite's dependency optimizer cache is pinned per application under
+`$TMPDIR/rules_vite_dev/<hash>/cache`: a generated config wraps the app's
+own and sets `cacheDir` only when the app did not. The default,
+`<root>/node_modules/.vite`, would resolve through the linked tree into
+`bazel-out`, and every concurrent server of the workspace would share one
+cache and invalidate each other's pre-bundles (`504 Outdated Optimize
+Dep`, blank pages).
+
+Consumers should gitignore the symlinked paths (`node_modules` without a
+trailing slash also matches the symlink, `*.rules_vite` covers the
+markers) and any `inject_dir` the dev server links into app packages.
+Gitignored paths are invisible to Tailwind v4's automatic content
+detection, so a stylesheet that must style overlay-injected components
+registers them with an explicit `@source`; without it the dev stylesheet
+silently loses every class only those components use. Register the real
+shared directory (for a `shared_dir` overlay, `@source` relative to it),
+not the overlay path: vite's module graph holds symlink targets by real
+path, so a change Tailwind sees under the overlay path falls outside the
+graph and forces a full page reload, while the real path keeps it a hot
+update. The example's globals.css (`@source "../"`) already lives in the
+shared tree.
 
 ## Known limitations
 

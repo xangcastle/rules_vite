@@ -8,7 +8,7 @@ produces out_dir as a TreeArtifact output. No shell is involved anywhere.
 """
 
 load("//private:validation.bzl", "vite_build_validation_error")
-load("//private/helpers:node.bzl", "link_package_name", "link_path", "staged_injected_files")
+load("//private/helpers:node.bzl", "foreign_src_error", "link_package_name", "link_path", "staged_injected_files")
 
 def _vite_build_impl(ctx):
     node = ctx.toolchains["@rules_nodejs//nodejs:toolchain_type"].nodeinfo.node
@@ -37,7 +37,12 @@ def _vite_build_impl(ctx):
             "sandbox) or node_modules (the whole linked tree).",
         )
 
-    staged = [{"source": f.path, "destination": f.short_path} for f in ctx.files.srcs]
+    staged = []
+    for f in ctx.files.srcs:
+        error = foreign_src_error(f.short_path, ctx.label.name)
+        if error:
+            fail(error)
+        staged.append({"source": f.path, "destination": f.short_path})
     staged.extend(staged_injected_files(ctx))
 
     manifest = {

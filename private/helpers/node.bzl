@@ -126,6 +126,49 @@ def strip_injected_path(short_path, strip):
         return (short_path[len(strip):], None)
     return (short_path.rsplit("/", 1)[-1], None)
 
+def foreign_src_error(short_path, target_name):
+    """Rejects srcs from other repositories before they reach the stage.
+
+    The stage mirrors the consuming repository's layout; an external file's
+    short_path (../<repo>/...) would resolve outside the stage directory.
+    External sources belong in injected_srcs, which re-roots them.
+
+    Args:
+      short_path: the src file's short_path.
+      target_name: the consuming target, for the message.
+
+    Returns:
+      None when stageable, else the failure message.
+    """
+    if short_path.startswith("../"):
+        return (
+            "rules_vite %s: src %s comes from another repository; srcs must " % (target_name, short_path) +
+            "belong to the consuming repository. Pass it through injected_srcs " +
+            "(with inject_dir/inject_strip) instead."
+        )
+    return None
+
+def overlay_root_error(root, target_name):
+    """Rejects shared_srcs that share no common runfiles directory.
+
+    An empty root, or a bare repository directory such as "_main", would make
+    the dev server mirror the whole runfiles tree of that scope (the linked
+    node_modules included) into the workspace.
+
+    Args:
+      root: the value computed by runfiles_tree_root.
+      target_name: the consuming target, for the message.
+
+    Returns:
+      None when usable, else the failure message.
+    """
+    if not root or "/" not in root:
+        return (
+            "rules_vite %s: shared_srcs have no common directory below a " % target_name +
+            "repository root (got %r); pass one filegroup rooted at the shared component tree." % root
+        )
+    return None
+
 def staged_injected_files(ctx):
     """Returns manifest entries for injected_srcs with strip validation.
 

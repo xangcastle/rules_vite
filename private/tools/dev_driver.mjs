@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -56,19 +58,25 @@ function readMarker(markerPath) {
             return { pids: parsed, files: null };
         }
         if (Array.isArray(parsed.pids) && Array.isArray(parsed.files)) {
-            return parsed;
+            return { copies: {}, ...parsed };
         }
     } catch {}
     return null;
 }
 
-function writeMarker(markerPath, pids, files) {
-    fs.writeFileSync(markerPath, JSON.stringify({ pids, files }));
+function writeMarker(markerPath, pids, files, copies = {}) {
+    const temporaryPath = markerPath + "." + process.pid + ".tmp";
+    fs.writeFileSync(temporaryPath, JSON.stringify({ pids, files, copies }));
+    fs.renameSync(temporaryPath, markerPath);
 }
 
 const acquiredLinks = [];
 
-function walkFiles(rootDirectory) {
+const BAZEL_BOUNDARY_FILES = new Set([
+    "BUILD", "BUILD.bazel", "WORKSPACE", "WORKSPACE.bazel", "MODULE.bazel", "REPO.bazel",
+]);
+
+function walkFiles(rootDirectory, { skipBazelFiles = false } = {}) {
     const files = [];
     const pending = [""];
     while (pending.length > 0) {
@@ -79,7 +87,7 @@ function walkFiles(rootDirectory) {
             const entryStat = fs.statSync(path.join(absolute, entry));
             if (entryStat.isDirectory()) {
                 pending.push(entryRelative);
-            } else if (entryStat.isFile()) {
+            } else if (entryStat.isFile() && !(skipBazelFiles && BAZEL_BOUNDARY_FILES.has(entry))) {
                 files.push(entryRelative);
             }
         }
@@ -129,9 +137,12 @@ function acquireOverlayDirectory(targetDirectory, sources) {
     if (existing) {
         const marker = readMarker(markerPath);
         if (!marker || marker.files === null) {
+            const present = walkFiles(targetDirectory);
             console.error(
-                "dev_driver: " + targetDirectory + " carries no readable dev-server " +
-                "marker. Remove it manually if you want the dev server to own it.",
+                "dev_driver: " + targetDirectory + " exists and is not managed by a dev server" +
+                (present.length ? " (it holds: " + present.slice(0, 5).join(", ") +
+                    (present.length > 5 ? ", ..." : "") + ")" : "") +
+                ". Nothing was touched; move or delete it to let the dev server own it.",
             );
             process.exit(2);
         }
@@ -169,7 +180,7 @@ function acquireOverlayDirectory(targetDirectory, sources) {
             console.error("dev_driver: overlay source not found at " + sourceRoot);
             process.exit(2);
         }
-        for (const relativePath of walkFiles(sourceRoot)) {
+        for (const relativePath of walkFiles(sourceRoot, { skipBazelFiles: true })) {
             if (claimedRelativePaths.has(relativePath)) {
                 console.error(
                     "dev_driver: overlay collision at " + path.join(targetDirectory, relativePath) +
@@ -183,9 +194,15 @@ function acquireOverlayDirectory(targetDirectory, sources) {
             planned.push({ relativePath, sourceKind, sourceRoot });
         }
     }
+    const copies = {};
+    for (const { relativePath, sourceKind, sourceRoot } of planned) {
+        if (sourceKind !== "ws") {
+            copies[relativePath] = path.join(sourceRoot, relativePath);
+        }
+    }
     const overlayMarker = readMarker(markerPath);
     const survivingPids = livePids(overlayMarker.pids.filter((pid) => pid !== process.pid));
-    writeMarker(markerPath, [...survivingPids, process.pid], plannedFiles);
+    writeMarker(markerPath, [...survivingPids, process.pid], plannedFiles, copies);
 
     for (const { relativePath, sourceKind, sourceRoot } of planned) {
         const linkPath = path.join(targetDirectory, relativePath);
@@ -225,6 +242,43 @@ function removeEmptyDirectories(rootDirectory) {
     return empty;
 }
 
+function isUntouchedOverlayEntry(entryPath, copySourcePath) {
+    const entryStat = fs.lstatSync(entryPath, { throwIfNoEntry: false });
+    if (!entryStat) {
+        return true;
+    }
+    if (entryStat.isSymbolicLink()) {
+        return true;
+    }
+    if (copySourcePath && entryStat.isFile() && fs.existsSync(copySourcePath)) {
+        return fs.readFileSync(entryPath).equals(fs.readFileSync(copySourcePath));
+    }
+    return false;
+}
+
+function releaseOverlay(overlayDirectory, marker) {
+    const preserved = [];
+    for (const relativePath of marker.files) {
+        const entryPath = path.join(overlayDirectory, relativePath);
+        if (isUntouchedOverlayEntry(entryPath, marker.copies[relativePath])) {
+            fs.rmSync(entryPath, { force: true });
+        } else {
+            preserved.push(entryPath);
+        }
+    }
+    if (preserved.length > 0) {
+        console.error(
+            "dev_driver: kept " + preserved.length + " overlay file(s) modified in place. Overlay " +
+            "entries are symlinks to the shared source or copies of external files, so these " +
+            "edits never reached the shared source (an editor's safe write replaces the symlink):\n  " +
+            preserved.join("\n  ") +
+            "\nMove the changes into the shared directory, then delete these files.",
+        );
+    }
+    removeEmptyDirectories(overlayDirectory);
+    try { fs.rmdirSync(overlayDirectory); } catch {}
+}
+
 function releaseLinks() {
     for (const { pathToRemove, markerPath, kind } of acquiredLinks.reverse()) {
         try {
@@ -234,18 +288,14 @@ function releaseLinks() {
             }
             const otherLivePids = livePids(marker.pids.filter((pid) => pid !== process.pid));
             if (otherLivePids.length > 0) {
-                writeMarker(markerPath, otherLivePids, marker.files || []);
+                writeMarker(markerPath, otherLivePids, marker.files || [], marker.copies);
                 continue;
             }
             if (kind === "overlay") {
                 if (marker.files === null) {
                     continue;
                 }
-                for (const relativePath of marker.files) {
-                    fs.rmSync(path.join(pathToRemove, relativePath), { force: true });
-                }
-                removeEmptyDirectories(pathToRemove);
-                try { fs.rmdirSync(pathToRemove); } catch {}
+                releaseOverlay(pathToRemove, marker);
             } else {
                 fs.rmSync(pathToRemove, { force: true });
             }
@@ -290,7 +340,58 @@ for (const overlayEntry of overlaySpec ? overlaySpec.split(";") : []) {
     acquireOverlayDirectory(overlayTarget, sources);
 }
 
-process.chdir(appPackage ? path.join(workspaceDirectory, appPackage) : workspaceDirectory);
-process.argv = [process.argv[0], "vite", ...passthroughArgs];
+const appDirectory = appPackage === "." ? workspaceDirectory : path.join(workspaceDirectory, appPackage);
+
+function takeConfigArgument(args) {
+    const remaining = [];
+    let configPath = null;
+    for (let i = 0; i < args.length; i++) {
+        if (args[i] === "-c" || args[i] === "--config") {
+            configPath = args[++i];
+        } else if (args[i].startsWith("--config=")) {
+            configPath = args[i].slice("--config=".length);
+        } else {
+            remaining.push(args[i]);
+        }
+    }
+    return { configPath, remaining };
+}
+
+const VITE_CONFIG_NAMES = [
+    "vite.config.js", "vite.config.mjs", "vite.config.ts",
+    "vite.config.cjs", "vite.config.mts", "vite.config.cts",
+];
+
+function writeCacheDirConfig(userConfigPath) {
+    const stateDirectory = path.join(
+        os.tmpdir(),
+        "rules_vite_dev",
+        createHash("sha256").update(appDirectory).digest("hex").slice(0, 16),
+    );
+    fs.mkdirSync(stateDirectory, { recursive: true });
+    const cacheDirectory = path.join(stateDirectory, "cache");
+    const userImport = userConfigPath
+        ? `import * as userModule from ${JSON.stringify(pathToFileURL(userConfigPath).href)};\n` +
+          "const userConfig = userModule.default;\n"
+        : "const userConfig = {};\n";
+    const wrapperPath = path.join(stateDirectory, "vite.config.rules_vite.mjs");
+    fs.writeFileSync(
+        wrapperPath,
+        userImport +
+        "export default async (env) => {\n" +
+        "    const resolved = (typeof userConfig === \"function\" ? await userConfig(env) : await userConfig) ?? {};\n" +
+        `    return { ...resolved, cacheDir: resolved.cacheDir ?? ${JSON.stringify(cacheDirectory)} };\n` +
+        "};\n",
+    );
+    return wrapperPath;
+}
+
+const { configPath: explicitConfig, remaining: viteArgs } = takeConfigArgument(passthroughArgs);
+const userConfigPath = explicitConfig
+    ? path.resolve(appDirectory, explicitConfig)
+    : VITE_CONFIG_NAMES.map((name) => path.join(appDirectory, name)).find((candidate) => fs.existsSync(candidate)) ?? null;
+
+process.chdir(appDirectory);
+process.argv = [process.argv[0], "vite", ...viteArgs, "--config", writeCacheDirConfig(userConfigPath)];
 
 await import(pathToFileURL(viteEntryAbsolute).href);

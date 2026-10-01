@@ -11,7 +11,7 @@ a server restart; dependency changes require restarting the server.
 
 load("@hermetic_launcher//launcher:lib.bzl", "launcher")
 load("//private/helpers:js_stub_binary.bzl", "js_stub_binary")
-load("//private/helpers:node.bzl", "runfiles_node_modules_spec", "runfiles_tree_root")
+load("//private/helpers:node.bzl", "overlay_root_error", "runfiles_node_modules_spec", "runfiles_tree_root")
 
 def _vite_run_impl(ctx):
     node = ctx.toolchains["@rules_nodejs//nodejs:toolchain_type"].nodeinfo.node
@@ -26,7 +26,11 @@ def _vite_run_impl(ctx):
             dep[DefaultInfo].files
             for dep in ctx.attr.shared_srcs
         ])
-        overlay_sources.append("rf:" + runfiles_tree_root(shared_files))
+        shared_root = runfiles_tree_root(shared_files)
+        error = overlay_root_error(shared_root, ctx.label.name)
+        if error:
+            fail(error)
+        overlay_sources.append("rf:" + shared_root)
     overlay_spec = "-"
     if ctx.attr.inject_dir and overlay_sources:
         overlay_spec = ctx.attr.inject_dir + "=" + ",".join(overlay_sources)

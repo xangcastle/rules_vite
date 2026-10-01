@@ -8,7 +8,7 @@ every sandboxed e2e build.
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//private:validation.bzl", "vite_build_validation_error")
-load("//private/helpers:node.bzl", "runfiles_node_modules_spec", "strip_injected_path")
+load("//private/helpers:node.bzl", "foreign_src_error", "overlay_root_error", "runfiles_node_modules_spec", "strip_injected_path")
 
 def _subject_ok_impl(ctx):
     env = analysistest.begin(ctx)
@@ -93,6 +93,13 @@ def _validation_impl(ctx):
     rel, err = strip_injected_path("components/src/ui/button.tsx", "wrong/")
     asserts.true(env, rel == None, "mismatching strip yields no path")
     asserts.true(env, err != None, "mismatching strip must error")
+
+    asserts.true(env, foreign_src_error("apps/web/src/main.tsx", "t") == None, "own-repo src is stageable")
+    asserts.true(env, foreign_src_error("../shadcn+/components/ui/button.tsx", "t") != None, "external src must fail")
+
+    asserts.true(env, overlay_root_error("rules_vite++chadcn+shadcn/components", "t") == None, "rooted overlay is usable")
+    asserts.true(env, overlay_root_error("", "t") != None, "empty overlay root must fail")
+    asserts.true(env, overlay_root_error("_main", "t") != None, "bare repository overlay root must fail")
 
     return unittest.end(env)
 

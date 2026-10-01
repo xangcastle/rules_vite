@@ -9,7 +9,7 @@ network access, and without host node_modules.
 
 load("@hermetic_launcher//launcher:lib.bzl", "launcher")
 load("//private/helpers:js_stub_binary.bzl", "js_stub_binary")
-load("//private/helpers:node.bzl", "runfiles_node_modules_spec", "staged_injected_files")
+load("//private/helpers:node.bzl", "foreign_src_error", "runfiles_node_modules_spec", "staged_injected_files")
 
 def _vitest_test_impl(ctx):
     node = ctx.toolchains["@rules_nodejs//nodejs:toolchain_type"].nodeinfo.node
@@ -23,6 +23,9 @@ def _vitest_test_impl(ctx):
         )
     staged = []
     for f in ctx.files.srcs:
+        error = foreign_src_error(f.short_path, ctx.label.name)
+        if error:
+            fail(error)
         staged.append({
             "source": f.path,
             "runfiles_path": f.short_path[3:] if f.short_path.startswith("../") else ctx.workspace_name + "/" + f.short_path,
