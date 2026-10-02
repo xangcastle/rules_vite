@@ -371,7 +371,7 @@ function writeCacheDirConfig(userConfigPath) {
     fs.mkdirSync(stateDirectory, { recursive: true });
     const cacheDirectory = path.join(stateDirectory, "cache");
     const userImport = userConfigPath
-        ? `import * as userModule from ${JSON.stringify(pathToFileURL(userConfigPath).href)};\n` +
+        ? `import * as userModule from ${JSON.stringify(userConfigPath)};\n` +
           "const userConfig = userModule.default;\n"
         : "const userConfig = {};\n";
     const wrapperPath = path.join(stateDirectory, "vite.config.rules_vite.mjs");

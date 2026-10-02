@@ -1,5 +1,5 @@
 load("@npm//:defs.bzl", "npm_link_all_packages")
-load("@rules_vite//:defs.bzl", "vite_build")
+load("@rules_vite//:defs.bzl", "vite_build", "vite_run")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -11,4 +11,8 @@ vite_build(
         "vite.config.js",
     ],
     visibility = ["//visibility:public"],
+)
+
+vite_run(
+    name = "web.dev",
 )

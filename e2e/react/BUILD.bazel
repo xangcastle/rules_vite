@@ -8,7 +8,7 @@ vite_build(
     srcs = glob(["src/**"]) + [
         "index.html",
         "package.json",
-        "vite.config.js",
+        "vite.config.ts",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -24,9 +24,9 @@ vitest_test(
     srcs = glob(["src/**"]) + [
         "index.html",
         "package.json",
-        "vite.config.js",
+        "vite.config.ts",
     ],
-    config = "vite.config.js",
+    config = "vite.config.ts",
     node_modules = "//:node_modules",
 )
 
