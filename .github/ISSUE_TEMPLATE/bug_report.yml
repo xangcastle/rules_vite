@@ -1,0 +1,180 @@
+name: Bug report
+description: Something in rules_vite fails, misbehaves or breaks hermeticity.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying rules_vite. Most bugs depend on the exact combination of
+        Bazel, Node, vite and the config file, so please fill in every version below:
+        it usually saves a round trip.
+
+  - type: dropdown
+    id: rule
+    attributes:
+      label: Affected rule
+      multiple: true
+      options:
+        - vite_build (bazel build)
+        - vitest_test (bazel test)
+        - vite_run (dev server / HMR)
+        - node_cli
+        - shadcn module extension
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, and what you got instead.
+      placeholder: |
+        `bazel run //apps/web:web.dev` should start the dev server; it exits with ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output
+      description: |
+        The full error, not just the last line. For build/test failures add
+        `--verbose_failures`; for tests, the test.log from `bazel-testlogs`.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: |
+        The smallest MODULE.bazel + BUILD.bazel + vite config that shows the problem,
+        or a link to a repository. A failing case added to `e2e/` is ideal.
+      placeholder: |
+        # BUILD.bazel
+        vite_run(
+            name = "web.dev",
+        )
+      render: starlark
+    validations:
+      required: true
+
+  - type: input
+    id: rules-vite-version
+    attributes:
+      label: rules_vite version
+      description: BCR version, or the commit of your git_override / archive_override.
+      placeholder: "0.1.0 or 91e7cc6"
+    validations:
+      required: true
+
+  - type: input
+    id: bazel-version
+    attributes:
+      label: Bazel version
+      description: Output of `bazel --version`.
+      placeholder: "bazel 8.7.0"
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node version (rules_nodejs toolchain)
+      description: The `node.toolchain(node_version = ...)` in your MODULE.bazel. Node >= 22.18 strips TypeScript types natively, which changes how .ts configs load.
+      placeholder: "22.14.0"
+    validations:
+      required: true
+
+  - type: input
+    id: vite-versions
+    attributes:
+      label: vite / vitest / plugin versions
+      description: From your pnpm lockfile. Behaviour differs between vite majors.
+      placeholder: "vite 7.3.1, vitest 3.2.4, @vitejs/plugin-react 5.1.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: config-file
+    attributes:
+      label: vite config file
+      options:
+        - vite.config.js
+        - vite.config.mjs
+        - vite.config.cjs
+        - vite.config.ts
+        - vite.config.mts
+        - vite.config.cts
+        - vitest.config.* (separate test config)
+        - No config file
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: config-shape
+    attributes:
+      label: Config details
+      description: Check everything that applies; the dev server wraps your config, so these matter.
+      options:
+        - label: The config exports a function or an async function
+        - label: The config sets `cacheDir`, `root`, `base` or `resolve.dedupe`
+        - label: A `--config` / `-c` flag is passed through `args`
+        - label: The config derives paths from `import.meta.url`, `import.meta.dirname` or `__dirname`
+
+  - type: dropdown
+    id: node-modules
+    attributes:
+      label: node_modules layout
+      options:
+        - Whole tree (`node_modules = "//:node_modules"`, the default)
+        - Per-package links (`deps = ["//:node_modules/<pkg>", ...]`)
+        - Nested pnpm importer (node_modules linked outside the workspace root)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Host OS / architecture
+      options:
+        - macOS arm64
+        - macOS x86_64
+        - Linux x86_64
+        - Linux arm64
+        - Windows (not supported yet, still useful to know)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: execution
+    attributes:
+      label: Execution
+      options:
+        - Local (sandboxed)
+        - Local with --spawn_strategy=local or standalone
+        - Remote execution (RBE)
+        - Remote cache only
+    validations:
+      required: true
+
+  - type: textarea
+    id: remote-details
+    attributes:
+      label: Remote execution details
+      description: Only for RBE/remote cache - executor (BuildBuddy, EngFlow, Buildbarn, own...), exec platform OS/arch, and whether it honors `block-network`.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues for this problem.
+          required: true
+        - label: I can reproduce it with the latest rules_vite release or main.
+          required: false
