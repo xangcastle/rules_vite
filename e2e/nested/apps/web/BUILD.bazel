@@ -1,9 +1,6 @@
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@rules_vite//:defs.bzl", "vite_build", "vite_run", "vitest_test")
 
-# A nested pnpm importer: this package links its own node_modules. None of
-# the targets below names vite, vite_entry or vitest_entry; rules_vite must
-# derive them from this package's links, not the workspace root's.
 npm_link_all_packages(name = "node_modules")
 
 SRCS = glob(["src/**"]) + [
@@ -20,32 +17,32 @@ APP_DEPS = [
 ]
 
 vite_build(
-    name = "web",
+    name = "web_vite_derived",
     srcs = SRCS,
     node_modules = ":node_modules",
 )
 
 vite_build(
-    name = "web_deps",
+    name = "web_deps_vite_derived",
     srcs = SRCS,
     deps = APP_DEPS,
 )
 
 vitest_test(
-    name = "unit_tests",
+    name = "unit_tests_vitest_derived",
     srcs = SRCS,
     config = "vite.config.ts",
     node_modules = ":node_modules",
 )
 
 vitest_test(
-    name = "unit_tests_deps",
+    name = "unit_tests_deps_vitest_derived",
     srcs = SRCS,
     config = "vite.config.ts",
     deps = APP_DEPS + [":node_modules/vitest"],
 )
 
 vite_run(
-    name = "web.dev",
+    name = "web_vite_derived.dev",
     node_modules = ":node_modules",
 )
