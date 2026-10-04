@@ -362,11 +362,6 @@ const VITE_CONFIG_NAMES = [
     "vite.config.cjs", "vite.config.mts", "vite.config.cts",
 ];
 
-// Linked packages resolve to Bazel's output tree, outside the workspace. vite
-// already serves modules it resolves through imports, but assets reached from
-// package CSS (url(./font.woff2)) are checked against server.fs.allow and
-// answered 403. Setting allow replaces vite's default, so the default is kept
-// by asking vite itself, and the package store is appended.
 async function fsAllowEntries(viteCliEntry) {
     const viteCliRealPath = fs.realpathSync(viteCliEntry);
     const storeMarker = `${path.sep}node_modules${path.sep}.aspect_rules_js${path.sep}`;
