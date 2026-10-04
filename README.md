@@ -95,6 +95,12 @@ driver that stages sources, config, and node_modules into a temp directory
 under `TEST_TMPDIR`, then runs vitest with the project root pinned to the
 staged package. Tests always run with the `block-network` tag.
 
+Snapshots are compared, never written: the test runs vitest in CI mode, so
+a `toMatchSnapshot()` with no committed snapshot fails instead of silently
+writing one into the throwaway stage. Commit the `__snapshots__/` files and
+keep them in `srcs`; write or update them with vitest outside Bazel
+(`vitest run -u`). `--test_env=CI=false` restores vitest's default.
+
 ### vite_run
 
 Runs the vite dev server against the real workspace tree. Vite watches
