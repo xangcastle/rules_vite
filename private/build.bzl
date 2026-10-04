@@ -216,7 +216,10 @@ def vite_build(
         **kwargs: Forwarded to the rule (tags, testonly, target_compatible_with).
     """
     if srcs == None:
-        srcs = native.glob(["*.config.*", "*.json", "index.html", "public/**", "src/**"])
+        srcs = native.glob(
+            ["*.config.*", "*.json", "index.html", "public/**", "src/**"],
+            allow_empty = True,
+        )
     error = vite_build_validation_error(name, out_dir, args, deps, node_modules)
     if error:
         fail(error)
