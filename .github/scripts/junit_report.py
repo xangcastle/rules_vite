@@ -52,13 +52,13 @@ def read_report(report, label):
 
 
 def summary_markdown(workspace, results):
-    lines = [f"### Test reports: `{workspace}`", "", "| target | cases | failed | skipped | time (s) | report |", "|---|---|---|---|---|---|"]
+    lines = [f"### Test reports: `{workspace}`", "", "| target | cases | failed | skipped | time (s) | source |", "|---|---|---|---|---|---|"]
     for result in results:
         cases = result["cases"]
         failed = sum(1 for case in cases if case["failure"] is not None)
         skipped = sum(1 for case in cases if case["skipped"])
         seconds = sum(case["time"] for case in cases)
-        kind = "synthesized by Bazel (one case for the whole target)" if result["synthesized"] else "per case"
+        kind = "Bazel placeholder (one entry per target)" if result["synthesized"] else "test runner (one entry per test)"
         lines.append(f"| `{result['label']}` | {len(cases)} | {failed} | {skipped} | {seconds:.2f} | {kind} |")
     failures = [(result["label"], case) for result in results for case in result["cases"] if case["failure"] is not None]
     if failures:
