@@ -8,7 +8,7 @@ every sandboxed e2e build.
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//private:validation.bzl", "vite_build_validation_error")
-load("//private/helpers:node.bzl", "foreign_src_error", "overlay_root_error", "runfiles_node_modules_spec", "strip_injected_path")
+load("//private/helpers:node.bzl", "foreign_src_error", "overlay_root_error", "package_entry_path", "runfiles_node_modules_spec", "strip_injected_path")
 
 def _subject_ok_impl(ctx):
     env = analysistest.begin(ctx)
@@ -113,6 +113,31 @@ def _nm_spec_impl(ctx):
     asserts.equals(env, "node_modules:node_modules", runfiles_node_modules_spec(nm, [], "t"), "tree spec")
     asserts.equals(env, "links:node_modules/vite", runfiles_node_modules_spec(None, [vite], "t"), "links spec")
     asserts.true(env, runfiles_node_modules_spec(None, [], "t") == None, "neither yields None")
+
+    asserts.equals(
+        env,
+        "node_modules/vitest/vitest.mjs",
+        package_entry_path(Label("//:node_modules"), [], "vitest", "vitest.mjs", "t"),
+        "root tree entry",
+    )
+    asserts.equals(
+        env,
+        "apps/web/node_modules/vite/bin/vite.js",
+        package_entry_path(Label("//apps/web:node_modules"), [], "vite", "bin/vite.js", "t"),
+        "nested importer tree entry",
+    )
+    asserts.equals(
+        env,
+        "apps/web/node_modules/vitest/vitest.mjs",
+        package_entry_path(
+            None,
+            [Label("//apps/web:node_modules/react"), Label("//apps/web:node_modules/vitest")],
+            "vitest",
+            "vitest.mjs",
+            "t",
+        ),
+        "nested importer link entry",
+    )
 
     return unittest.end(env)
 

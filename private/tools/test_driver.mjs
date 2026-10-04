@@ -74,9 +74,8 @@ if (nodeModulesSpec.startsWith("node_modules:")) {
 } else if (nodeModulesSpec.startsWith("links:")) {
     fs.mkdirSync(path.join(stageDirectory, "node_modules"), { recursive: true });
     for (const linkRelativePath of nodeModulesSpec.slice("links:".length).split(",")) {
-        const packageName = linkRelativePath.startsWith("node_modules/")
-            ? linkRelativePath.slice("node_modules/".length)
-            : linkRelativePath;
+        const marker = "node_modules/";
+        const packageName = linkRelativePath.slice(linkRelativePath.lastIndexOf(marker) + marker.length);
         const packageLinkPath = path.join(stageDirectory, "node_modules", packageName);
         fs.mkdirSync(path.dirname(packageLinkPath), { recursive: true });
         fs.symlinkSync(resolveWorkspaceRunfilesPath(linkRelativePath), packageLinkPath, "dir");

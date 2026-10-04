@@ -74,7 +74,7 @@ TreeArtifact).
 | <a id="vite_build-inject_dir"></a>inject_dir |  Package-relative directory injected_srcs land in.   |  `""` |
 | <a id="vite_build-inject_strip"></a>inject_strip |  Workspace path prefix stripped from injected_srcs so subdirectories are preserved.   |  `""` |
 | <a id="vite_build-node_modules"></a>node_modules |  The whole npm_link_all_packages tree - every package enters every sandbox. The default when neither deps nor node_modules is given; pass explicitly only for nested workspace packages that link their own tree.   |  `None` |
-| <a id="vite_build-vite"></a>vite |  The vite package link; locates the CLI entry script.   |  `"//:node_modules/vite"` |
+| <a id="vite_build-vite"></a>vite |  The vite package link; locates the CLI entry script. Defaults to the vite link in deps, else node_modules + "/vite" (so a nested importer uses its own vite), else "//:node_modules/vite".   |  `None` |
 | <a id="vite_build-vite_entry"></a>vite_entry |  vite CLI entry script, relative to the vite package link; override only for exotic package manager layouts.   |  `"bin/vite.js"` |
 | <a id="vite_build-visibility"></a>visibility |  Standard visibility (None = package default).   |  `None` |
 | <a id="vite_build-kwargs"></a>kwargs |  Forwarded to the rule (tags, testonly, target_compatible_with).   |  none |
@@ -116,7 +116,7 @@ changes do not - that is what HMR is for.
 | <a id="vite_run-env"></a>env |  Environment variables for the dev server (e.g. VITE_* flags consumed by the app's vite config).   |  `{}` |
 | <a id="vite_run-deps"></a>deps |  Per-package node_modules links; linked individually under node_modules in the workspace for the server's lifetime.   |  `[]` |
 | <a id="vite_run-node_modules"></a>node_modules |  The npm_link_all_packages target of the consuming workspace ("//:node_modules").   |  `"//:node_modules"` |
-| <a id="vite_run-vite_entry"></a>vite_entry |  vite CLI entry script, workspace-relative inside runfiles; override only for exotic package manager layouts.   |  `"node_modules/vite/bin/vite.js"` |
+| <a id="vite_run-vite_entry"></a>vite_entry |  vite CLI entry script, workspace-relative inside runfiles. Empty (the default) derives it from node_modules, or from the vite link in deps; override only for exotic layouts.   |  `""` |
 | <a id="vite_run-tags"></a>tags |  Standard tags.   |  `[]` |
 | <a id="vite_run-visibility"></a>visibility |  Standard visibility (None = package default).   |  `None` |
 | <a id="vite_run-kwargs"></a>kwargs |  Forwarded to the rule (tags, testonly, target_compatible_with).   |  none |
@@ -156,7 +156,7 @@ appended by bazel test after the driver's own argv.
 | <a id="vitest_test-inject_dir"></a>inject_dir |  Package-relative directory injected_srcs land in.   |  `""` |
 | <a id="vitest_test-inject_strip"></a>inject_strip |  Workspace path prefix stripped so subdirectories survive the injection.   |  `""` |
 | <a id="vitest_test-node_modules"></a>node_modules |  The npm_link_all_packages target of the consuming workspace ("//:node_modules").   |  `"//:node_modules"` |
-| <a id="vitest_test-vitest_entry"></a>vitest_entry |  Path of the vitest entry script inside the linked node_modules tree, overridden only for exotic package layouts.   |  `"node_modules/vitest/vitest.mjs"` |
+| <a id="vitest_test-vitest_entry"></a>vitest_entry |  Path of the vitest entry script inside runfiles. Empty (the default) derives it from node_modules, or from the vitest link in deps; override only for exotic layouts.   |  `""` |
 | <a id="vitest_test-tags"></a>tags |  Standard test tags (block-network is always included).   |  `[]` |
 | <a id="vitest_test-visibility"></a>visibility |  Standard visibility (None = package default).   |  `None` |
 | <a id="vitest_test-kwargs"></a>kwargs |  Forwarded to the rule (tags, testonly, target_compatible_with).   |  none |

@@ -177,8 +177,11 @@ you control:
 | `node_modules` | `//:node_modules` | The `npm_link_all_packages` tree. |
 | `node` | toolchain | Resolved from the registered rules_nodejs toolchain. |
 
-Both are overridable. Nested workspace packages point at their own linked
-tree by overriding `node_modules`. Runfiles address every repository,
+Both are overridable. A nested pnpm importer (a sub-package with its own
+`npm_link_all_packages`) passes `node_modules = ":node_modules"`, or its own
+`":node_modules/<pkg>"` links as `deps`; the vite and vitest entry points
+are derived from those same links, so nothing else needs overriding.
+`e2e/nested` is the working example. Runfiles address every repository,
 including external ones, by canonical name - exactly the form
 File.short_path already carries.
 
