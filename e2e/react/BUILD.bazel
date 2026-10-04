@@ -74,3 +74,20 @@ vitest_test(
     node_modules = "//:node_modules",
     tags = ["manual"],
 )
+
+vitest_test(
+    name = "file_reports_test",
+    srcs = glob(["src/**"]) + [
+        "index.html",
+        "package.json",
+        "vite.config.ts",
+    ],
+    args = [
+        "--reporter=json",
+        "--outputFile.json=reports/vitest.json",
+        "--reporter=html",
+        "--outputFile.html=reports/html/index.html",
+    ],
+    config = "vite.config.ts",
+    node_modules = "//:node_modules",
+)

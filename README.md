@@ -128,6 +128,13 @@ Annotation paths are rewritten from the test's stage to repository paths.
 When the Bazel workspace is not the repository root, add
 `--test_env=RULES_VITE_ANNOTATION_PREFIX=<workspace path in the repo>`.
 
+Reports vitest writes to disk (`--reporter=html`, `--reporter=json` with
+`--outputFile`, a junit `outputFile` of your own, coverage directories)
+are kept: files the run creates under the package are copied, at the
+same package-relative path, to `TEST_UNDECLARED_OUTPUTS_DIR`, i.e.
+`bazel-testlogs/<pkg>/<target>/test.outputs/` (zipped as `outputs.zip`
+when `--zip_undeclared_test_outputs` is on).
+
 ### vite_run
 
 Runs the vite dev server against the real workspace tree. Vite watches

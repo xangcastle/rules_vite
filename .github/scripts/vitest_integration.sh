@@ -64,4 +64,19 @@ grep -q '^::error file=e2e/react/fixtures/annotation.fixture.js,.*line=4,' "$ann
     exit 1
 }
 
+check "reports vitest writes to disk end up in test.outputs"
+bazel test "$@" //:file_reports_test > /dev/null
+python3 - "$testlogs/file_reports_test/test.outputs" << 'PYTHON'
+import pathlib
+import sys
+import zipfile
+outputs = pathlib.Path(sys.argv[1])
+names = {str(path.relative_to(outputs)) for path in outputs.rglob("*") if path.is_file()}
+for archive in outputs.glob("*.zip"):
+    names |= set(zipfile.ZipFile(archive).namelist())
+missing = [name for name in ("reports/vitest.json", "reports/html/index.html") if name not in names]
+if missing:
+    sys.exit(f"missing from test.outputs: {', '.join(missing)}")
+PYTHON
+
 echo "OK: vitest integration checks passed"
