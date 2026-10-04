@@ -1,0 +1,7 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`compares against the committed snapshot 1`] = `
+{
+  "total": 6,
+}
+`;

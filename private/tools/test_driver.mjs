@@ -88,9 +88,8 @@ if (nodeModulesSpec.startsWith("node_modules:")) {
 const stagedPackageDirectory = manifest.package ? path.join(stageDirectory, manifest.package) : stageDirectory;
 process.chdir(stagedPackageDirectory);
 
-// vitest auto-discovers vitest.config.* before vite.config.*, so without an
-// explicit --config a stray vitest.config.ts in srcs silently replaces the
-// config declared in BUILD.
+process.env.CI ??= "true";
+
 const callerPassedConfig = passthroughArgs.some(
     (arg) => arg === "-c" || arg === "--config" || arg.startsWith("--config="),
 );
