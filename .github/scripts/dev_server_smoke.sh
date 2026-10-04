@@ -13,7 +13,12 @@ shift $(($# < 3 ? $# : 3))
 
 cd "$workspace"
 log=$(mktemp)
-status_before=$(git status --porcelain --untracked-files=all -- .)
+# The whole tree, empty directories and gitignored paths included: git status
+# alone misses an empty node_modules/@scope/ the dev server forgot to remove.
+tree_snapshot() {
+    find . \( -name .git -o -name 'bazel-*' \) -prune -o -print | LC_ALL=C sort
+}
+tree_before=$(tree_snapshot)
 
 stop_server() {
     pkill -TERM -f "dev_driver.mjs" 2>/dev/null || true
@@ -71,10 +76,10 @@ echo "OK $target: ${#fs_urls[@]} /@fs/ asset reference(s) served"
 
 stop_server || fail "server did not stop"
 trap - EXIT
-status_after=$(git status --porcelain --untracked-files=all -- .)
-[ "$status_before" = "$status_after" ] || {
+tree_after=$(tree_snapshot)
+[ "$tree_before" = "$tree_after" ] || {
     echo "source tree changed after the dev server exited:" >&2
-    diff <(echo "$status_before") <(echo "$status_after") >&2 || true
+    diff <(echo "$tree_before") <(echo "$tree_after") >&2 || true
     exit 1
 }
 echo "OK $target: source tree unchanged after SIGTERM"
