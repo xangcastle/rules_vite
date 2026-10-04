@@ -63,7 +63,7 @@ TreeArtifact).
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
 | <a id="vite_build-name"></a>name |  Target name. The bundle tree is the target's default output.   |  none |
-| <a id="vite_build-srcs"></a>srcs |  Application sources. Defaults to a glob of the usual vite layout (src/**, public/**, index.html, *.json, *.config.*).   |  `None` |
+| <a id="vite_build-srcs"></a>srcs |  Application sources. Defaults to a glob of the usual vite layout (src/**, public/**, index.html, *.json, *.config.*) plus the committed env files (.env, .env.[mode]); per-machine *.local env files are left out. With explicit srcs, list the .env files yourself or the build will not see their VITE_* values (the dev server reads them from the workspace).   |  `None` |
 | <a id="vite_build-config"></a>config |  Optional vite config file (label or package-relative path). Passed explicitly via `--config` and staged with the sources.   |  `None` |
 | <a id="vite_build-out_dir"></a>out_dir |  Directory declared as the action output. The default, "dist", is vite's own default.   |  `"dist"` |
 | <a id="vite_build-args"></a>args |  Extra argv entries appended after the vite build flags. A plain list; no shell interpolation happens anywhere.   |  `[]` |

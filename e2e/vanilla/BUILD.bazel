@@ -1,3 +1,4 @@
+load("@aspect_rules_js//js:defs.bzl", "js_test")
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@rules_vite//:defs.bzl", "vite_build", "vite_run")
 
@@ -21,4 +22,13 @@ vite_run(
 # (Bazel 8 rejects an empty glob pattern unless allow_empty is set).
 vite_build(
     name = "web_default_srcs",
+)
+
+# Regression: the default srcs must carry .env / .env.[mode] so production
+# builds see the same VITE_* values the dev server reads from the workspace.
+js_test(
+    name = "default_srcs_read_dotenv",
+    args = ["$(rootpath :web_default_srcs)"],
+    data = [":web_default_srcs"],
+    entry_point = "check_dotenv.mjs",
 )

@@ -176,7 +176,11 @@ def vite_build(
     Args:
         name: Target name. The bundle tree is the target's default output.
         srcs: Application sources. Defaults to a glob of the usual vite
-            layout (src/**, public/**, index.html, *.json, *.config.*).
+            layout (src/**, public/**, index.html, *.json, *.config.*) plus
+            the committed env files (.env, .env.[mode]); per-machine
+            *.local env files are left out. With explicit srcs, list the
+            .env files yourself or the build will not see their VITE_*
+            values (the dev server reads them from the workspace).
         config: Optional vite config file (label or package-relative path).
             Passed explicitly via `--config` and staged with the sources.
         out_dir: Directory declared as the action output. The default,
@@ -206,7 +210,11 @@ def vite_build(
     """
     if srcs == None:
         srcs = native.glob(
-            ["*.config.*", "*.json", "index.html", "public/**", "src/**"],
+            ["*.config.*", "*.json", ".env", ".env.*", "index.html", "public/**", "src/**"],
+            # *.local env files are per-machine overrides (gitignored by the
+            # vite templates): as inputs they would make the build depend on
+            # the developer's machine and could push secrets to a remote cache.
+            exclude = [".env.local", ".env.*.local"],
             allow_empty = True,
         )
     error = vite_build_validation_error(name, out_dir, args, deps, node_modules)
