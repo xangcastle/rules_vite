@@ -145,15 +145,43 @@ const callerPassedConfig = passthroughArgs.some(
 );
 const configArgs = callerPassedConfig ? [] : ["--config", path.join(stageDirectory, manifest.config)];
 
+function writeGithubActionsReporter() {
+    const reporterPath = path.join(stageDirectory, ".rules_vite", "github-actions-reporter.mjs");
+    const stageRoots = [...new Set([stageDirectory, fs.realpathSync(stageDirectory)])];
+    fs.mkdirSync(path.dirname(reporterPath), { recursive: true });
+    fs.writeFileSync(
+        reporterPath,
+        'import path from "node:path";\n' +
+        'import { GithubActionsReporter } from "vitest/reporters";\n' +
+        `const stageRoots = ${JSON.stringify(stageRoots)};\n` +
+        `const repositoryPrefix = ${JSON.stringify(process.env.RULES_VITE_ANNOTATION_PREFIX || "")};\n` +
+        "function repositoryPath(file) {\n" +
+        "    for (const stageRoot of stageRoots) {\n" +
+        "        const relative = path.relative(stageRoot, file);\n" +
+        "        if (!relative.startsWith(\"..\") && !path.isAbsolute(relative)) {\n" +
+        "            return path.posix.join(repositoryPrefix, relative.split(path.sep).join(\"/\"));\n" +
+        "        }\n" +
+        "    }\n" +
+        "    return file;\n" +
+        "}\n" +
+        "export default class RepositoryPathGithubActionsReporter extends GithubActionsReporter {\n" +
+        "    constructor() {\n" +
+        "        super({ onWritePath: repositoryPath });\n" +
+        "    }\n" +
+        "}\n",
+    );
+    return reporterPath;
+}
+
 const callerPassedReporter = passthroughArgs.some((arg) => arg === "--reporter" || arg.startsWith("--reporter="));
-const junitArgs = process.env.XML_OUTPUT_FILE
-    ? [
-        ...(callerPassedReporter ? [] : ["--reporter=default"]),
-        "--reporter=junit",
-        `--outputFile.junit=${process.env.XML_OUTPUT_FILE}`,
-    ]
-    : [];
+const writesJunit = Boolean(process.env.XML_OUTPUT_FILE);
+const annotatesGithub = process.env.GITHUB_ACTIONS === "true";
+const reporterArgs = [
+    ...(!callerPassedReporter && (writesJunit || annotatesGithub) ? ["--reporter=default"] : []),
+    ...(writesJunit ? ["--reporter=junit", `--outputFile.junit=${process.env.XML_OUTPUT_FILE}`] : []),
+    ...(annotatesGithub ? [`--reporter=${writeGithubActionsReporter()}`] : []),
+];
 const testNameFilterArgs = process.env.TESTBRIDGE_TEST_ONLY ? ["-t", process.env.TESTBRIDGE_TEST_ONLY] : [];
-process.argv = [process.argv[0], "vitest", "run", ...configArgs, ...junitArgs, ...testNameFilterArgs, ...passthroughArgs];
+process.argv = [process.argv[0], "vitest", "run", ...configArgs, ...reporterArgs, ...testNameFilterArgs, ...passthroughArgs];
 
 await import(pathToFileURL(resolveRunfilesPath(vitestEntryScript)).href);

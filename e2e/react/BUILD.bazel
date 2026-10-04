@@ -102,3 +102,11 @@ js_test(
     data = [":external_greet"],
     entry_point = "node_cli_external_package_test.mjs",
 )
+
+vitest_test(
+    name = "annotation_fixture_test",
+    srcs = ["fixtures/annotation.fixture.js"],
+    config = "fixtures/annotation.config.ts",
+    node_modules = "//:node_modules",
+    tags = ["manual"],
+)

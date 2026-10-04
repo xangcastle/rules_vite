@@ -124,6 +124,18 @@ target's `args` pass their own `--reporter`.
 whose name matches run, the rest are reported as skipped. The test log is
 plain text (`NO_COLOR=1`); `--test_env=FORCE_COLOR=1` keeps vitest's colors.
 
+On GitHub Actions, failures become annotations on the pull request at the
+failing line, as with plain vitest. Pass the runner's flag through and let
+Bazel print the failing logs to the job output, where GitHub reads them:
+
+```
+bazel test //... --test_env=GITHUB_ACTIONS --test_output=errors
+```
+
+Annotation paths are rewritten from the test's stage to repository paths.
+When the Bazel workspace is not the repository root, add
+`--test_env=RULES_VITE_ANNOTATION_PREFIX=<workspace path in the repo>`.
+
 ### vite_run
 
 Runs the vite dev server against the real workspace tree. Vite watches
