@@ -131,9 +131,6 @@ function acquireLink(linkPath, runfilesTarget) {
     writeMarker(markerPath, [...pids, process.pid], [], {}, marker ? marker.createdDirectories : []);
 }
 
-// Directories mkdir -p is about to create for linkPath (node_modules/ and,
-// for scoped packages, node_modules/@scope/), deepest first. Recorded in the
-// link's marker so the last server to exit removes them, whoever made them.
 function missingAncestors(linkPath) {
     const missing = [];
     let directory = path.dirname(linkPath);
