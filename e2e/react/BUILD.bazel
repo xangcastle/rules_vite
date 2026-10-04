@@ -58,3 +58,15 @@ vitest_test(
     config = "vite.config.ts",
     node_modules = "//:node_modules",
 )
+
+# Regression: the dev server in deps mode links each package (scoped ones
+# under node_modules/@scope/) and must remove every directory it created.
+vite_run(
+    name = "web_deps.dev",
+    deps = [
+        "//:node_modules/@vitejs/plugin-react",
+        "//:node_modules/react",
+        "//:node_modules/react-dom",
+        "//:node_modules/vite",
+    ],
+)

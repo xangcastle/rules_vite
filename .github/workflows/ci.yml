@@ -66,6 +66,7 @@ jobs:
             matrix:
                 case:
                     - { path: "e2e/react", target: "//:web.dev", slug: "react-vite7-ts-config" }
+                    - { path: "e2e/react", target: "//:web_deps.dev", slug: "react-deps-mode-links" }
                     - { path: "e2e/vanilla", target: "//:web.dev", slug: "vanilla-vite7-js-config" }
                     - { path: "example", target: "//apps/dashboard:app.dev", slug: "example-vite8-ts-config-overlays" }
                     - { path: "e2e/nested", target: "//apps/web:web.dev", slug: "nested-pnpm-importer" }

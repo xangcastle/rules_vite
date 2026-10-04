@@ -58,15 +58,15 @@ function readMarker(markerPath) {
             return { pids: parsed, files: null };
         }
         if (Array.isArray(parsed.pids) && Array.isArray(parsed.files)) {
-            return { copies: {}, ...parsed };
+            return { copies: {}, createdDirectories: [], ...parsed };
         }
     } catch {}
     return null;
 }
 
-function writeMarker(markerPath, pids, files, copies = {}) {
+function writeMarker(markerPath, pids, files, copies = {}, createdDirectories = []) {
     const temporaryPath = markerPath + "." + process.pid + ".tmp";
-    fs.writeFileSync(temporaryPath, JSON.stringify({ pids, files, copies }));
+    fs.writeFileSync(temporaryPath, JSON.stringify({ pids, files, copies, createdDirectories }));
     fs.renameSync(temporaryPath, markerPath);
 }
 
@@ -106,10 +106,11 @@ function acquireLink(linkPath, runfilesTarget) {
         process.exit(2);
     }
     if (!existing) {
+        const createdDirectories = missingAncestors(linkPath);
         fs.mkdirSync(path.dirname(linkPath), { recursive: true });
         fs.symlinkSync(runfilesTarget, linkPath, "dir");
         acquiredLinks.push({ pathToRemove: linkPath, markerPath, kind: "link" });
-        writeMarker(markerPath, [process.pid], []);
+        writeMarker(markerPath, [process.pid], [], {}, createdDirectories);
         return;
     }
     if (!existing.isSymbolicLink()) {
@@ -127,7 +128,28 @@ function acquireLink(linkPath, runfilesTarget) {
     acquiredLinks.push({ pathToRemove: linkPath, markerPath, kind: "link" });
     const marker = readMarker(markerPath);
     const pids = marker ? livePids(marker.pids.filter((pid) => pid !== process.pid)) : [];
-    writeMarker(markerPath, [...pids, process.pid], []);
+    writeMarker(markerPath, [...pids, process.pid], [], {}, marker ? marker.createdDirectories : []);
+}
+
+// Directories mkdir -p is about to create for linkPath (node_modules/ and,
+// for scoped packages, node_modules/@scope/), deepest first. Recorded in the
+// link's marker so the last server to exit removes them, whoever made them.
+function missingAncestors(linkPath) {
+    const missing = [];
+    let directory = path.dirname(linkPath);
+    while (!fs.existsSync(directory)) {
+        missing.push(directory);
+        directory = path.dirname(directory);
+    }
+    return missing;
+}
+
+function removeCreatedDirectories(createdDirectories) {
+    for (const directory of createdDirectories) {
+        try {
+            fs.rmdirSync(directory);
+        } catch {}
+    }
 }
 
 function acquireOverlayDirectory(targetDirectory, sources) {
@@ -288,7 +310,7 @@ function releaseLinks() {
             }
             const otherLivePids = livePids(marker.pids.filter((pid) => pid !== process.pid));
             if (otherLivePids.length > 0) {
-                writeMarker(markerPath, otherLivePids, marker.files || [], marker.copies);
+                writeMarker(markerPath, otherLivePids, marker.files || [], marker.copies, marker.createdDirectories);
                 continue;
             }
             if (kind === "overlay") {
@@ -300,6 +322,7 @@ function releaseLinks() {
                 fs.rmSync(pathToRemove, { force: true });
             }
             fs.rmSync(markerPath, { force: true });
+            removeCreatedDirectories(marker.createdDirectories);
         } catch {}
     }
 }
