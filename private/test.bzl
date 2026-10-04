@@ -9,7 +9,7 @@ network access, and without host node_modules.
 
 load("@hermetic_launcher//launcher:lib.bzl", "launcher")
 load("//private/helpers:js_stub_binary.bzl", "js_stub_binary")
-load("//private/helpers:node.bzl", "foreign_src_error", "runfiles_node_modules_spec", "staged_injected_files")
+load("//private/helpers:node.bzl", "foreign_src_error", "package_entry_path", "runfiles_node_modules_spec", "staged_injected_files")
 
 def _vitest_test_impl(ctx):
     node = ctx.toolchains["@rules_nodejs//nodejs:toolchain_type"].nodeinfo.node
@@ -44,6 +44,13 @@ def _vitest_test_impl(ctx):
         "config": ctx.file.config.short_path,
         "files": staged,
     }
+    vitest_entry = ctx.attr.vitest_entry or package_entry_path(
+        ctx.attr.node_modules.label if ctx.attr.node_modules else None,
+        [dep.label for dep in ctx.attr.deps],
+        "vitest",
+        "vitest.mjs",
+        ctx.label.name,
+    )
     manifest_file = ctx.actions.declare_file(ctx.label.name + "_manifest.json")
     ctx.actions.write(manifest_file, json.encode(manifest))
 
@@ -52,7 +59,7 @@ def _vitest_test_impl(ctx):
         node,
         ctx.file._driver,
         runfiles = [manifest_file],
-        embedded_args = [node_modules_spec, ctx.attr.vitest_entry],
+        embedded_args = [node_modules_spec, vitest_entry],
     )
 
     files = [ctx.file.config, node, ctx.file._driver, manifest_file] + list(ctx.files.srcs) + list(ctx.files.injected_srcs)
@@ -68,8 +75,8 @@ _vitest_test = rule(
     implementation = _vitest_test_impl,
     attrs = {
         "vitest_entry": attr.string(
-            doc = "The vitest entry script, workspace-relative inside runfiles.",
-            default = "node_modules/vitest/vitest.mjs",
+            doc = "The vitest entry script, workspace-relative inside runfiles. " +
+                  "Empty derives it from node_modules (or the vitest link in deps).",
         ),
         "config": attr.label(
             doc = "The vite/vitest config file, staged at the package root inside the stage.",
@@ -122,7 +129,7 @@ def vitest_test(
         inject_dir = "",
         inject_strip = "",
         node_modules = "//:node_modules",
-        vitest_entry = "node_modules/vitest/vitest.mjs",
+        vitest_entry = "",
         tags = [],
         visibility = None,
         **kwargs):
@@ -151,8 +158,9 @@ def vitest_test(
             survive the injection.
         node_modules: The npm_link_all_packages target of the consuming
             workspace ("//:node_modules").
-        vitest_entry: Path of the vitest entry script inside the linked
-            node_modules tree, overridden only for exotic package layouts.
+        vitest_entry: Path of the vitest entry script inside runfiles.
+            Empty (the default) derives it from node_modules, or from the
+            vitest link in deps; override only for exotic layouts.
         tags: Standard test tags (block-network is always included).
         visibility: Standard visibility (None = package default).
         **kwargs: Forwarded to the rule (tags, testonly, target_compatible_with).

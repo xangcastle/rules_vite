@@ -3,6 +3,7 @@
 e2e/vanilla
 e2e/react
 e2e/shadcn
+e2e/nested
 
 # The example monorepo is likewise its own module.
 example

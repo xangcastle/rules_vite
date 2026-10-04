@@ -11,7 +11,7 @@ a server restart; dependency changes require restarting the server.
 
 load("@hermetic_launcher//launcher:lib.bzl", "launcher")
 load("//private/helpers:js_stub_binary.bzl", "js_stub_binary")
-load("//private/helpers:node.bzl", "overlay_root_error", "runfiles_node_modules_spec", "runfiles_tree_root")
+load("//private/helpers:node.bzl", "overlay_root_error", "package_entry_path", "runfiles_node_modules_spec", "runfiles_tree_root")
 
 def _vite_run_impl(ctx):
     node = ctx.toolchains["@rules_nodejs//nodejs:toolchain_type"].nodeinfo.node
@@ -35,6 +35,14 @@ def _vite_run_impl(ctx):
     if ctx.attr.inject_dir and overlay_sources:
         overlay_spec = ctx.attr.inject_dir + "=" + ",".join(overlay_sources)
 
+    vite_entry = ctx.attr.vite_entry or package_entry_path(
+        ctx.attr.node_modules.label if ctx.attr.node_modules else None,
+        [dep.label for dep in ctx.attr.deps],
+        "vite",
+        "bin/vite.js",
+        ctx.label.name,
+    )
+
     executable = js_stub_binary(
         ctx,
         node,
@@ -42,7 +50,7 @@ def _vite_run_impl(ctx):
         runfiles = [],
         embedded_args = [
             node_modules_spec or "-",
-            ctx.attr.vite_entry,
+            vite_entry,
             ctx.label.package or ".",
             overlay_spec,
         ],
@@ -69,8 +77,8 @@ _vite_run = rule(
     implementation = _vite_run_impl,
     attrs = {
         "vite_entry": attr.string(
-            doc = "The vite CLI entry script, workspace-relative inside runfiles.",
-            default = "node_modules/vite/bin/vite.js",
+            doc = "The vite CLI entry script, workspace-relative inside runfiles. " +
+                  "Empty derives it from node_modules (or the vite link in deps).",
         ),
         "node_modules": attr.label(
             doc = "The whole npm_link_all_packages tree; prefer deps.",
@@ -116,7 +124,7 @@ def vite_run(
         env = {},
         deps = [],
         node_modules = "//:node_modules",
-        vite_entry = "node_modules/vite/bin/vite.js",
+        vite_entry = "",
         tags = [],
         visibility = None,
         **kwargs):
@@ -150,7 +158,8 @@ def vite_run(
         node_modules: The npm_link_all_packages target of the consuming
             workspace ("//:node_modules").
         vite_entry: vite CLI entry script, workspace-relative inside
-            runfiles; override only for exotic package manager layouts.
+            runfiles. Empty (the default) derives it from node_modules, or
+            from the vite link in deps; override only for exotic layouts.
         tags: Standard tags.
         visibility: Standard visibility (None = package default).
         **kwargs: Forwarded to the rule (tags, testonly, target_compatible_with).

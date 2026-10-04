@@ -149,6 +149,14 @@ _vite_build = rule(
     toolchains = ["@rules_nodejs//nodejs:toolchain_type"],
 )
 
+def _default_vite_link(deps, node_modules):
+    for dep in deps:
+        if str(dep).endswith("node_modules/vite"):
+            return dep
+    if node_modules:
+        return str(node_modules) + "/vite"
+    return "//:node_modules/vite"
+
 def vite_build(
         name,
         srcs = None,
@@ -162,7 +170,7 @@ def vite_build(
         inject_dir = "",
         inject_strip = "",
         node_modules = None,
-        vite = "//:node_modules/vite",
+        vite = None,
         vite_entry = "bin/vite.js",
         visibility = None,
         **kwargs):
@@ -199,6 +207,9 @@ def vite_build(
             node_modules is given; pass explicitly only for nested
             workspace packages that link their own tree.
         vite: The vite package link; locates the CLI entry script.
+            Defaults to the vite link in deps, else node_modules + "/vite"
+            (so a nested importer uses its own vite), else
+            "//:node_modules/vite".
         vite_entry: vite CLI entry script, relative to the vite package
             link; override only for exotic package manager layouts.
         visibility: Standard visibility (None = package default).
@@ -211,6 +222,8 @@ def vite_build(
         fail(error)
     if not deps and not node_modules:
         node_modules = "//:node_modules"
+    if vite == None:
+        vite = _default_vite_link(deps, node_modules)
     if config and config not in srcs:
         srcs = list(srcs) + [config]
 

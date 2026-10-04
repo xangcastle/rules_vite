@@ -68,6 +68,33 @@ def link_package_name(label):
         )
     return label.name[len("node_modules/"):]
 
+def package_entry_path(node_modules_label, dep_labels, package_name, entry, target_name):
+    """The runfiles path of a script inside one linked npm package.
+
+    Derived from the same node_modules the target links, so a nested pnpm
+    importer (node_modules linked in a sub-package) resolves its own vite or
+    vitest instead of the workspace root's.
+
+    Args:
+      node_modules_label: the whole-tree link label, or None in deps mode.
+      dep_labels: per-package link labels (deps mode).
+      package_name: npm package holding the script, e.g. "vitest".
+      entry: path of the script inside that package, e.g. "vitest.mjs".
+      target_name: the consuming target, for the error message.
+
+    Returns:
+      The workspace-relative runfiles path of the script.
+    """
+    if node_modules_label:
+        return link_rel(node_modules_label) + "/" + package_name + "/" + entry
+    for label in dep_labels:
+        if label.name == "node_modules/" + package_name:
+            return link_rel(label) + "/" + entry
+    fail(
+        "rules_vite %s: deps must include the %s link " % (target_name, package_name) +
+        "(\":node_modules/%s\"), or pass node_modules instead." % package_name,
+    )
+
 def validate_link_label(label, target_name):
     """Fails at analysis time if the label doesn't match the convention."""
     if not label.name.startswith("node_modules") and label.name != "node_modules":
