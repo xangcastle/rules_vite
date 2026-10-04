@@ -44,3 +44,17 @@ node_cli(
     name = "shadcn",
     package = "//:node_modules/shadcn",
 )
+
+# Regression: srcs also carry a vitest.config.ts decoy, which vitest would
+# auto-discover first; the declared config must still be the one used.
+vitest_test(
+    name = "declared_config_test",
+    srcs = glob(["src/**"]) + [
+        "index.html",
+        "package.json",
+        "vite.config.ts",
+        "vitest.config.ts",
+    ],
+    config = "vite.config.ts",
+    node_modules = "//:node_modules",
+)
