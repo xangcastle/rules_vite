@@ -79,4 +79,24 @@ if missing:
     sys.exit(f"missing from test.outputs: {', '.join(missing)}")
 PYTHON
 
+check "bazel coverage reports vitest's lcov per source file"
+bazel coverage "$@" //:unit_tests --instrument_test_targets --combined_report=lcov > /dev/null
+combined_report="$(bazel info "$@" output_path 2> /dev/null)/_coverage/_coverage_report.dat"
+for report in "$testlogs/unit_tests/coverage.dat" "$combined_report"; do
+    python3 - "$report" << 'PYTHON'
+import sys
+records = {}
+current = None
+for line in open(sys.argv[1]):
+    line = line.strip()
+    if line.startswith("SF:"):
+        current = records.setdefault(line[3:], {})
+    elif current is not None and line.startswith(("LH:", "LF:")):
+        current[line[:2]] = int(line[3:])
+calc = records.get("src/lib/calc.js")
+if calc != {"LH": 6, "LF": 6}:
+    sys.exit(f"{sys.argv[1]}: src/lib/calc.js coverage is {calc}, expected 6/6 lines hit")
+PYTHON
+done
+
 echo "OK: vitest integration checks passed"

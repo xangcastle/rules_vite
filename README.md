@@ -135,6 +135,18 @@ same package-relative path, to `TEST_UNDECLARED_OUTPUTS_DIR`, i.e.
 `bazel-testlogs/<pkg>/<target>/test.outputs/` (zipped as `outputs.zip`
 when `--zip_undeclared_test_outputs` is on).
 
+`bazel coverage` runs vitest with coverage (v8; vitest's default `text`,
+`html`, `clover` and `json` reporters plus `lcov`): the text table lands in
+the test log, the html/json reports in `test.outputs/coverage/`, and the
+lcov, rewritten to workspace paths, feeds Bazel's `coverage.dat` and
+`--combined_report=lcov`. It needs `@vitest/coverage-v8` among the test's
+node_modules, and `--instrument_test_targets` (the sources are attributes
+of the test target itself, which Bazel does not instrument by default):
+
+```
+coverage --instrument_test_targets
+```
+
 ### vite_run
 
 Runs the vite dev server against the real workspace tree. Vite watches

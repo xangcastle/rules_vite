@@ -69,7 +69,14 @@ def _vitest_test_impl(ctx):
     ]
     runfiles = ctx.runfiles(files = files, transitive_files = depset(transitive = trees))
 
-    return [DefaultInfo(executable = executable, runfiles = runfiles)]
+    return [
+        DefaultInfo(executable = executable, runfiles = runfiles),
+        coverage_common.instrumented_files_info(
+            ctx,
+            source_attributes = ["srcs", "injected_srcs"],
+            extensions = ["js", "jsx", "mjs", "cjs", "ts", "tsx", "mts", "cts", "vue", "svelte"],
+        ),
+    ]
 
 _vitest_test = rule(
     implementation = _vitest_test_impl,
@@ -104,6 +111,12 @@ _vitest_test = rule(
         "deps": attr.label_list(
             doc = "Per-package node_modules links (e.g. vitest and the packages " +
                   "the config imports), linked individually in the stage.",
+        ),
+        "_lcov_merger": attr.label(
+            doc = "Bazel's coverage output generator; merges the lcov the driver writes under bazel coverage.",
+            default = configuration_field(fragment = "coverage", name = "output_generator"),
+            executable = True,
+            cfg = "exec",
         ),
         "_driver": attr.label(
             doc = "The node driver that stages the app tree and runs vitest.",
