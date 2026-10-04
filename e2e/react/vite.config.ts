@@ -1,12 +1,10 @@
 import react from "@vitejs/plugin-react";
 
-const typeScriptOnlyAnnotation: "node" | "jsdom" = "node";
-
 export default {
   plugins: [react()],
   publicDir: false,
   test: {
-    environment: typeScriptOnlyAnnotation,
+    environment: "node",
     include: ["src/**/*.test.js"],
     env: { RULES_VITE_TEST_CONFIG: "vite.config.ts" },
   },

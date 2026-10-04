@@ -18,5 +18,5 @@ vite_run(
 )
 
 vite_build(
-    name = "web_default_srcs",
+    name = "web_default_srcs_without_public",
 )
