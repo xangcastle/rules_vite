@@ -106,8 +106,12 @@ staged package. Tests always run with the `block-network` tag.
 Snapshots are compared, never written: the test runs vitest in CI mode, so
 a `toMatchSnapshot()` with no committed snapshot fails instead of silently
 writing one into the throwaway stage. Commit the `__snapshots__/` files and
-keep them in `srcs`; write or update them with vitest outside Bazel
-(`vitest run -u`). `--test_env=CI=false` restores vitest's default.
+keep them in `srcs`. Write or update them with
+`bazel run //pkg:tests -- -u [file...]`: the driver copies new or changed
+`__snapshots__/` files (and sources rewritten by inline snapshots) back
+into the source tree and removes the ones vitest dropped as obsolete.
+`bazel test --test_arg=-u` fails instead, since its writes would land in
+the stage. `--test_env=CI=false` restores vitest's default.
 
 Results are reported per test case: under `bazel test` vitest's JUnit
 reporter writes Bazel's `XML_OUTPUT_FILE`, so `bazel-testlogs/<pkg>/<name>/test.xml`

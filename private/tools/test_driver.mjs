@@ -43,6 +43,64 @@ for (const stagedFile of manifest.files) {
     fs.writeFileSync(stagedPath, fs.readFileSync(resolveRunfilesPath(stagedFile.runfiles_path)));
 }
 
+const snapshotUpdateRequested = passthroughArgs.some((arg) => arg === "-u" || arg === "--update");
+const workspaceToUpdate = process.env.BUILD_WORKSPACE_DIRECTORY;
+if (snapshotUpdateRequested && !workspaceToUpdate) {
+    console.error(
+        "test_driver: -u/--update rewrites snapshots in the source tree, which `bazel test` cannot " +
+        "reach. Run `bazel run " + (process.env.TEST_TARGET || "<test target>") + " -- -u` instead.",
+    );
+    process.exit(2);
+}
+
+const workspaceSourceContents = new Map(
+    manifest.files
+        .filter((stagedFile) => stagedFile.runfiles_path.endsWith("/" + stagedFile.destination))
+        .map((stagedFile) => [stagedFile.destination, fs.readFileSync(path.join(stageDirectory, stagedFile.destination))]),
+);
+
+function isSnapshotFile(relativePath) {
+    return relativePath.split("/").includes("__snapshots__");
+}
+
+function stagedFilesBelow(directory, relativeDirectory = "") {
+    const files = [];
+    for (const entry of fs.readdirSync(path.join(directory, relativeDirectory), { withFileTypes: true })) {
+        const relativePath = relativeDirectory ? relativeDirectory + "/" + entry.name : entry.name;
+        if (entry.isDirectory() && entry.name !== "node_modules") {
+            files.push(...stagedFilesBelow(directory, relativePath));
+        } else if (entry.isFile()) {
+            files.push(relativePath);
+        }
+    }
+    return files;
+}
+
+function writeSnapshotUpdatesToWorkspace() {
+    const stagedFiles = new Set(stagedFilesBelow(stageDirectory));
+    for (const relativePath of stagedFiles) {
+        const original = workspaceSourceContents.get(relativePath);
+        const current = fs.readFileSync(path.join(stageDirectory, relativePath));
+        const changed = original ? !original.equals(current) : isSnapshotFile(relativePath);
+        if (changed) {
+            const workspacePath = path.join(workspaceToUpdate, relativePath);
+            fs.mkdirSync(path.dirname(workspacePath), { recursive: true });
+            fs.writeFileSync(workspacePath, current);
+            console.log("test_driver: updated " + relativePath);
+        }
+    }
+    for (const relativePath of workspaceSourceContents.keys()) {
+        if (isSnapshotFile(relativePath) && !stagedFiles.has(relativePath)) {
+            fs.rmSync(path.join(workspaceToUpdate, relativePath), { force: true });
+            console.log("test_driver: removed obsolete " + relativePath);
+        }
+    }
+}
+
+if (snapshotUpdateRequested) {
+    process.prependListener("exit", writeSnapshotUpdatesToWorkspace);
+}
+
 const removeStageDirectory = () => {
     try { fs.rmSync(stageDirectory, { recursive: true, force: true }); } catch {}
 };
