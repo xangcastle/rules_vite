@@ -17,8 +17,6 @@ vite_run(
     name = "web.dev",
 )
 
-# Regression: the default srcs glob must work in a package without public/
-# (Bazel 8 rejects an empty glob pattern unless allow_empty is set).
 vite_build(
     name = "web_default_srcs",
 )
