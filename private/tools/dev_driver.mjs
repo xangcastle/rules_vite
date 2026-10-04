@@ -362,7 +362,21 @@ const VITE_CONFIG_NAMES = [
     "vite.config.cjs", "vite.config.mts", "vite.config.cts",
 ];
 
-function writeCacheDirConfig(userConfigPath) {
+async function fsAllowEntries(viteCliEntry) {
+    const viteCliRealPath = fs.realpathSync(viteCliEntry);
+    const storeMarker = `${path.sep}node_modules${path.sep}.aspect_rules_js${path.sep}`;
+    const storeIndex = viteCliRealPath.indexOf(storeMarker);
+    const packageStore = storeIndex >= 0
+        ? viteCliRealPath.slice(0, storeIndex + storeMarker.length - 1)
+        : path.dirname(path.dirname(path.dirname(viteCliRealPath)));
+    const vitePackageDirectory = path.dirname(path.dirname(viteCliRealPath));
+    const viteExports = JSON.parse(fs.readFileSync(path.join(vitePackageDirectory, "package.json"), "utf8")).exports["."];
+    const viteNodeEntry = typeof viteExports === "string" ? viteExports : viteExports.import;
+    const { searchForWorkspaceRoot } = await import(pathToFileURL(path.join(vitePackageDirectory, viteNodeEntry)).href);
+    return { defaultAllow: [searchForWorkspaceRoot(appDirectory)], packageStore };
+}
+
+function writeCacheDirConfig(userConfigPath, { defaultAllow, packageStore }) {
     const stateDirectory = path.join(
         os.tmpdir(),
         "rules_vite_dev",
@@ -380,7 +394,13 @@ function writeCacheDirConfig(userConfigPath) {
         userImport +
         "export default async (env) => {\n" +
         "    const resolved = (typeof userConfig === \"function\" ? await userConfig(env) : await userConfig) ?? {};\n" +
-        `    return { ...resolved, cacheDir: resolved.cacheDir ?? ${JSON.stringify(cacheDirectory)} };\n` +
+        "    const fsConfig = resolved.server?.fs ?? {};\n" +
+        `    const allow = [...(fsConfig.allow ?? ${JSON.stringify(defaultAllow)}), ${JSON.stringify(packageStore)}];\n` +
+        "    return {\n" +
+        "        ...resolved,\n" +
+        `        cacheDir: resolved.cacheDir ?? ${JSON.stringify(cacheDirectory)},\n` +
+        "        server: { ...resolved.server, fs: { ...fsConfig, allow } },\n" +
+        "    };\n" +
         "};\n",
     );
     return wrapperPath;
@@ -392,6 +412,7 @@ const userConfigPath = explicitConfig
     : VITE_CONFIG_NAMES.map((name) => path.join(appDirectory, name)).find((candidate) => fs.existsSync(candidate)) ?? null;
 
 process.chdir(appDirectory);
-process.argv = [process.argv[0], "vite", ...viteArgs, "--config", writeCacheDirConfig(userConfigPath)];
+const wrapperConfig = writeCacheDirConfig(userConfigPath, await fsAllowEntries(viteEntryAbsolute));
+process.argv = [process.argv[0], "vite", ...viteArgs, "--config", wrapperConfig];
 
 await import(pathToFileURL(viteEntryAbsolute).href);

@@ -50,6 +50,25 @@ entry_status=$(curl -s -o /dev/null -w "%{http_code}" "$url$entry")
 [ "$entry_status" = "200" ] || fail "entry $entry answered $entry_status"
 echo "OK $target: index 200, entry $entry 200"
 
+# Every /@fs/ URL the entry graph references (package CSS, fonts, ?url
+# assets) must be servable: their real paths live in Bazel's output tree,
+# outside the workspace, and vite's fs.allow rejects them with 403 otherwise.
+modules=("$entry")
+for module in $(curl -fsS "$url$entry" | grep -oE '"/[^"?]+\.(css|js|jsx|ts|tsx)(\?[^"]*)?"' | tr -d '"' | grep -v '^/@'); do
+    modules+=("$module")
+done
+fs_urls=()
+for module in "${modules[@]}"; do
+    while IFS= read -r fs_url; do
+        [ -n "$fs_url" ] && fs_urls+=("$fs_url")
+    done < <(curl -fsS "$url$module" | grep -oE '/@fs/[^"'"'"' )]+' | sort -u)
+done
+for fs_url in $(printf '%s\n' "${fs_urls[@]}" | sort -u); do
+    fs_status=$(curl -s -o /dev/null -w "%{http_code}" "$url$fs_url")
+    [ "$fs_status" = "200" ] || fail "$fs_url answered $fs_status"
+done
+echo "OK $target: ${#fs_urls[@]} /@fs/ asset reference(s) served"
+
 stop_server || fail "server did not stop"
 trap - EXIT
 status_after=$(git status --porcelain --untracked-files=all -- .)
