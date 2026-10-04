@@ -187,6 +187,28 @@ const reporterArgs = [
     ...(annotatesGithub ? [`--reporter=${writeGithubActionsReporter()}`] : []),
 ];
 const testNameFilterArgs = process.env.TESTBRIDGE_TEST_ONLY ? ["-t", process.env.TESTBRIDGE_TEST_ONLY] : [];
+
+const undeclaredOutputsDirectory = process.env.TEST_UNDECLARED_OUTPUTS_DIR;
+const stagedFilesBeforeRun = new Set(stagedFilesBelow(stageDirectory));
+const stagedPackagePrefix = manifest.package ? manifest.package + "/" : "";
+
+function copyRunOutputsToUndeclaredOutputs() {
+    for (const relativePath of stagedFilesBelow(stageDirectory)) {
+        const writtenByRun = !stagedFilesBeforeRun.has(relativePath)
+            && relativePath.startsWith(stagedPackagePrefix)
+            && !relativePath.startsWith(".rules_vite/")
+            && !isSnapshotFile(relativePath);
+        if (writtenByRun) {
+            const outputPath = path.join(undeclaredOutputsDirectory, relativePath.slice(stagedPackagePrefix.length));
+            fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+            fs.copyFileSync(path.join(stageDirectory, relativePath), outputPath);
+        }
+    }
+}
+
+if (undeclaredOutputsDirectory) {
+    process.prependListener("exit", copyRunOutputsToUndeclaredOutputs);
+}
 process.argv = [process.argv[0], "vitest", "run", ...configArgs, ...reporterArgs, ...testNameFilterArgs, ...passthroughArgs];
 
 await import(pathToFileURL(resolveRunfilesPath(vitestEntryScript)).href);
