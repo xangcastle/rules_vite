@@ -209,6 +209,51 @@ function copyRunOutputsToUndeclaredOutputs() {
 if (undeclaredOutputsDirectory) {
     process.prependListener("exit", copyRunOutputsToUndeclaredOutputs);
 }
-process.argv = [process.argv[0], "vitest", "run", ...configArgs, ...reporterArgs, ...testNameFilterArgs, ...passthroughArgs];
+const coverageDirectory = process.env.COVERAGE_DIR;
+const coverageArgs = coverageDirectory
+    ? [
+        "--coverage.enabled=true",
+        "--coverage.reportsDirectory=coverage",
+        ...["text", "html", "clover", "json", "lcov"].map((reporter) => `--coverage.reporter=${reporter}`),
+    ]
+    : [];
+
+function workspaceRelativeSourcePath(sourceFile) {
+    const absoluteSourceFile = path.isAbsolute(sourceFile) ? sourceFile : path.join(stagedPackageDirectory, sourceFile);
+    for (const stageRoot of new Set([stageDirectory, fs.realpathSync(stageDirectory)])) {
+        const relative = path.relative(stageRoot, absoluteSourceFile);
+        if (!relative.startsWith("..") && !path.isAbsolute(relative)) {
+            return relative.split(path.sep).join("/");
+        }
+    }
+    return sourceFile;
+}
+
+function writeCoverageForBazel() {
+    const lcovPath = path.join(stagedPackageDirectory, "coverage", "lcov.info");
+    if (!fs.existsSync(lcovPath)) {
+        return;
+    }
+    const lcov = fs.readFileSync(lcovPath, "utf8")
+        .split("\n")
+        .map((line) => (line.startsWith("SF:") ? "SF:" + workspaceRelativeSourcePath(line.slice(3)) : line))
+        .join("\n");
+    fs.writeFileSync(path.join(coverageDirectory, "vitest_lcov.dat"), lcov);
+}
+
+const coverageManifest = process.env.COVERAGE_MANIFEST;
+if (coverageDirectory && coverageManifest && fs.existsSync(coverageManifest) && fs.statSync(coverageManifest).size === 0) {
+    console.error(
+        "test_driver: bazel coverage instruments no files for this target, so its coverage.dat stays empty. " +
+        "vitest_test sources are attributes of the test itself: add --instrument_test_targets " +
+        "(e.g. `coverage --instrument_test_targets` in .bazelrc).",
+    );
+}
+
+if (coverageDirectory) {
+    process.prependListener("exit", writeCoverageForBazel);
+}
+
+process.argv = [process.argv[0], "vitest", "run", ...configArgs, ...reporterArgs, ...coverageArgs, ...testNameFilterArgs, ...passthroughArgs];
 
 await import(pathToFileURL(resolveRunfilesPath(vitestEntryScript)).href);
