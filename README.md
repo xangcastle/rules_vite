@@ -116,6 +116,10 @@ case with its file, duration and failure message instead of one entry for
 the whole target. The console keeps vitest's `default` reporter unless the
 target's `args` pass their own `--reporter`.
 
+`--test_filter=<pattern>` is passed to vitest as `-t <pattern>`: only cases
+whose name matches run, the rest are reported as skipped. The test log is
+plain text (`NO_COLOR=1`); `--test_env=FORCE_COLOR=1` keeps vitest's colors.
+
 ### vite_run
 
 Runs the vite dev server against the real workspace tree. Vite watches
