@@ -89,6 +89,9 @@ const stagedPackageDirectory = manifest.package ? path.join(stageDirectory, mani
 process.chdir(stagedPackageDirectory);
 
 process.env.CI ??= "true";
+if (process.env.FORCE_COLOR === undefined) {
+    process.env.NO_COLOR ??= "1";
+}
 
 const callerPassedConfig = passthroughArgs.some(
     (arg) => arg === "-c" || arg === "--config" || arg.startsWith("--config="),
@@ -103,6 +106,7 @@ const junitArgs = process.env.XML_OUTPUT_FILE
         `--outputFile.junit=${process.env.XML_OUTPUT_FILE}`,
     ]
     : [];
-process.argv = [process.argv[0], "vitest", "run", ...configArgs, ...junitArgs, ...passthroughArgs];
+const testNameFilterArgs = process.env.TESTBRIDGE_TEST_ONLY ? ["-t", process.env.TESTBRIDGE_TEST_ONLY] : [];
+process.argv = [process.argv[0], "vitest", "run", ...configArgs, ...junitArgs, ...testNameFilterArgs, ...passthroughArgs];
 
 await import(pathToFileURL(resolveWorkspaceRunfilesPath(vitestEntryScript)).href);
