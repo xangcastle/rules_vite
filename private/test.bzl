@@ -8,6 +8,7 @@ network access, and without host node_modules.
 """
 
 load("@hermetic_launcher//launcher:lib.bzl", "launcher")
+load("//private:run.bzl", "workspace_cli_run")
 load("//private/helpers:js_stub_binary.bzl", "js_stub_binary")
 load("//private/helpers:node.bzl", "foreign_src_error", "package_entry_path", "runfiles_node_modules_spec", "staged_injected_files")
 
@@ -156,6 +157,11 @@ def vitest_test(
     `args`) behave as for any bazel test target; `args` entries are
     appended by bazel test after the driver's own argv.
 
+    Also defines `<name>.watch`: `bazel run //pkg:<name>.watch` runs
+    `vitest watch` against the real workspace (node_modules and
+    injected_srcs linked in for its lifetime, like vite_run), re-running the
+    affected tests on every save.
+
     Args:
         name: Test target name.
         srcs: Application sources (must include the config and any file the
@@ -202,4 +208,20 @@ def vitest_test(
         tags = all_tags,
         visibility = visibility,
         **kwargs
+    )
+
+    workspace_cli_run(
+        name = name + ".watch",
+        cli_package = "vitest",
+        cli_entry = "vitest.mjs",
+        cli_args = ["watch"],
+        config = config,
+        vite_entry = vitest_entry,
+        node_modules = node_modules,
+        deps = deps,
+        inject_dir = inject_dir if injected_srcs else "",
+        shared_srcs = injected_srcs,
+        tags = tags,
+        testonly = kwargs.get("testonly", False),
+        visibility = visibility,
     )

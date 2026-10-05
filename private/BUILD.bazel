@@ -49,6 +49,7 @@ bzl_library(
     srcs = ["test.bzl"],
     visibility = ["//visibility:public"],
     deps = [
+        ":run",
         "//private/helpers:js_stub_binary",
         "//private/helpers:node",
     ],

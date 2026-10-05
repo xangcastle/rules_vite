@@ -141,6 +141,11 @@ staged tree. The standard test attributes (`env`, `size`, `data`,
 `args`) behave as for any bazel test target; `args` entries are
 appended by bazel test after the driver's own argv.
 
+Also defines `<name>.watch`: `bazel run //pkg:<name>.watch` runs
+`vitest watch` against the real workspace (node_modules and
+injected_srcs linked in for its lifetime, like vite_run), re-running the
+affected tests on every save.
+
 
 **PARAMETERS**
 

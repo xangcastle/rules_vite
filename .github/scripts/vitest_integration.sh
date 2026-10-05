@@ -99,4 +99,46 @@ if calc != {"LH": 6, "LF": 6}:
 PYTHON
 done
 
+check "bazel run <test>.watch reruns on an edit and leaves the workspace as it found it"
+watched_test=src/lib/calc.test.js
+watch_log=$(mktemp)
+watched_original=$(mktemp)
+cp "$watched_test" "$watched_original"
+trap 'cp "$watched_original" "$watched_test"' EXIT
+tree_snapshot() {
+    find . \( -name .git -o -name 'bazel-*' \) -prune -o -print | LC_ALL=C sort
+}
+tree_before=$(tree_snapshot)
+bazel run "$@" //:unit_tests.watch -- "$watched_test" > "$watch_log" 2>&1 &
+wait_for_log() {
+    for _ in $(seq 1 180); do
+        grep -q "$1" "$watch_log" && return 0
+        sleep 1
+    done
+    echo "watch never printed: $1"
+    cat "$watch_log"
+    exit 1
+}
+wait_for_log "for file changes"
+grep -q "calc.test.js (2 tests)" "$watch_log" || { echo "first watch run did not run calc.test.js"; cat "$watch_log"; exit 1; }
+printf '\nit("is picked up by the running watcher", () => {\n  expect(sum([4, 5])).toBe(9);\n});\n' >> "$watched_test"
+wait_for_log "calc.test.js (3 tests)"
+cp "$watched_original" "$watched_test"
+watch_pid=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["pids"][0])' node_modules.rules_vite)
+kill -TERM "$watch_pid"
+for _ in $(seq 1 30); do
+    kill -0 "$watch_pid" 2> /dev/null || break
+    sleep 1
+done
+if kill -0 "$watch_pid" 2> /dev/null; then
+    echo "watch process $watch_pid survived SIGTERM"
+    exit 1
+fi
+wait || true
+[ "$(tree_snapshot)" = "$tree_before" ] || {
+    echo "the watch left the workspace changed:"
+    diff <(echo "$tree_before") <(tree_snapshot) || true
+    exit 1
+}
+
 echo "OK: vitest integration checks passed"

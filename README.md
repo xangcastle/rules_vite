@@ -155,6 +155,15 @@ of the test target itself, which Bazel does not instrument by default):
 coverage --instrument_test_targets
 ```
 
+Each `vitest_test` also declares `<name>.watch`: `bazel run //pkg:tests.watch`
+runs `vitest watch` against the real workspace tree, like `npx vitest`
+outside Bazel, with the same config and node_modules as the test. Edits
+rerun the affected tests; trailing args go to vitest
+(`bazel run //pkg:tests.watch -- src/lib/calc.test.js`). It is not CI mode,
+so as with plain vitest a missing snapshot is written into the source
+tree. The node_modules link follows the `vite_run` rules below and is
+removed when the watcher exits.
+
 ### vite_run
 
 Runs the vite dev server against the real workspace tree. Vite watches
