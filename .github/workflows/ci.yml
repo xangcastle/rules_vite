@@ -33,7 +33,7 @@ jobs:
                 workspace:
                     - { path: ".", slug: "root", targets: "//private/... //docs/...", tests: "true" }
                     - { path: "e2e/vanilla", slug: "vanilla", targets: "//...", tests: "false" }
-                    - { path: "e2e/react", slug: "react", targets: "//...", tests: "true" }
+                    - { path: "e2e/react", slug: "react", targets: "//...", tests: "true", require: "--require //:unit_tests=5 --require //:declared_config_test=5" }
                     - { path: "e2e/shadcn", slug: "shadcn", targets: "//...", tests: "true" }
                     - { path: "e2e/nested", slug: "nested", targets: "//...", tests: "true" }
                     - { path: "example", slug: "example", targets: "//...", tests: "true" }
@@ -56,6 +56,9 @@ jobs:
               if: matrix.workspace.tests == 'true'
               working-directory: ${{ matrix.workspace.path }}
               run: bazel test ${{ matrix.bazel.flags }} -- ${{ matrix.workspace.targets }}
+            - name: Test reports
+              if: always() && matrix.workspace.tests == 'true'
+              run: python3 .github/scripts/junit_report.py "${{ matrix.workspace.path }}" --targets ${{ matrix.workspace.targets }} ${{ matrix.workspace.require }}
 
     dev-server:
         name: dev-server (${{ matrix.case.slug }})

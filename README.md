@@ -101,6 +101,13 @@ writing one into the throwaway stage. Commit the `__snapshots__/` files and
 keep them in `srcs`; write or update them with vitest outside Bazel
 (`vitest run -u`). `--test_env=CI=false` restores vitest's default.
 
+Results are reported per test case: under `bazel test` vitest's JUnit
+reporter writes Bazel's `XML_OUTPUT_FILE`, so `bazel-testlogs/<pkg>/<name>/test.xml`
+(and anything that reads it: CI test views, BES backends) lists every
+case with its file, duration and failure message instead of one entry for
+the whole target. The console keeps vitest's `default` reporter unless the
+target's `args` pass their own `--reporter`.
+
 ### vite_run
 
 Runs the vite dev server against the real workspace tree. Vite watches

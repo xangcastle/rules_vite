@@ -94,6 +94,15 @@ const callerPassedConfig = passthroughArgs.some(
     (arg) => arg === "-c" || arg === "--config" || arg.startsWith("--config="),
 );
 const configArgs = callerPassedConfig ? [] : ["--config", path.join(stageDirectory, manifest.config)];
-process.argv = [process.argv[0], "vitest", "run", ...configArgs, ...passthroughArgs];
+
+const callerPassedReporter = passthroughArgs.some((arg) => arg === "--reporter" || arg.startsWith("--reporter="));
+const junitArgs = process.env.XML_OUTPUT_FILE
+    ? [
+        ...(callerPassedReporter ? [] : ["--reporter=default"]),
+        "--reporter=junit",
+        `--outputFile.junit=${process.env.XML_OUTPUT_FILE}`,
+    ]
+    : [];
+process.argv = [process.argv[0], "vitest", "run", ...configArgs, ...junitArgs, ...passthroughArgs];
 
 await import(pathToFileURL(resolveWorkspaceRunfilesPath(vitestEntryScript)).href);
