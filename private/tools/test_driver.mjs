@@ -156,6 +156,11 @@ const callerPassedConfig = passthroughArgs.some(
 );
 const configArgs = callerPassedConfig ? [] : ["--config", path.join(stageDirectory, manifest.config)];
 
+function githubActionsReporterModule() {
+    const vitestManifest = JSON.parse(fs.readFileSync(path.join(stageDirectory, "node_modules", "vitest", "package.json"), "utf8"));
+    return "./reporters" in (vitestManifest.exports ?? {}) ? "vitest/reporters" : "vitest/node";
+}
+
 function writeGithubActionsReporter() {
     const reporterPath = path.join(stageDirectory, ".rules_vite", "github-actions-reporter.mjs");
     const stageRoots = [...new Set([stageDirectory, fs.realpathSync(stageDirectory)])];
@@ -163,7 +168,7 @@ function writeGithubActionsReporter() {
     fs.writeFileSync(
         reporterPath,
         'import path from "node:path";\n' +
-        'import { GithubActionsReporter } from "vitest/reporters";\n' +
+        `import { GithubActionsReporter } from ${JSON.stringify(githubActionsReporterModule())};\n` +
         `const stageRoots = ${JSON.stringify(stageRoots)};\n` +
         `const repositoryPrefix = ${JSON.stringify(process.env.RULES_VITE_ANNOTATION_PREFIX || "")};\n` +
         "function repositoryPath(file) {\n" +
