@@ -109,7 +109,7 @@ tree_snapshot() {
     find . \( -name .git -o -name 'bazel-*' \) -prune -o -print | LC_ALL=C sort
 }
 tree_before=$(tree_snapshot)
-bazel run "$@" //:unit_tests.watch -- "$watched_test" > "$watch_log" 2>&1 &
+NO_COLOR=1 bazel run "$@" //:unit_tests.watch -- "$watched_test" > "$watch_log" 2>&1 &
 wait_for_log() {
     for _ in $(seq 1 180); do
         grep -q "$1" "$watch_log" && return 0
