@@ -55,7 +55,10 @@ jobs:
             - name: Test
               if: matrix.workspace.tests == 'true'
               working-directory: ${{ matrix.workspace.path }}
-              run: bazel test ${{ matrix.bazel.flags }} -- ${{ matrix.workspace.targets }}
+              run: >-
+                  bazel test ${{ matrix.bazel.flags }} --test_output=errors
+                  --test_env=GITHUB_ACTIONS --test_env=RULES_VITE_ANNOTATION_PREFIX=${{ matrix.workspace.path }}
+                  -- ${{ matrix.workspace.targets }}
             - name: Test reports
               if: always() && matrix.workspace.tests == 'true'
               run: python3 .github/scripts/junit_report.py "${{ matrix.workspace.path }}" --targets ${{ matrix.workspace.targets }} ${{ matrix.workspace.require }}

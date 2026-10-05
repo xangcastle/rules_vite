@@ -51,4 +51,17 @@ if bazel test "$@" //:unit_tests --test_arg=-u > /dev/null 2>&1; then
 fi
 grep -q "bazel run //:unit_tests -- -u" "$testlogs/unit_tests/test.log" || { echo "missing the bazel run hint in test.log"; exit 1; }
 
+check "GITHUB_ACTIONS annotations point at the repository file and line"
+annotation_log=$(mktemp)
+if GITHUB_ACTIONS=true bazel test "$@" //:annotation_fixture_test --test_output=errors \
+    --test_env=GITHUB_ACTIONS --test_env=RULES_VITE_ANNOTATION_PREFIX=e2e/react > "$annotation_log" 2>&1; then
+    echo "annotation_fixture_test passed; it must fail on purpose"
+    exit 1
+fi
+grep -q '^::error file=e2e/react/fixtures/annotation.fixture.js,.*line=4,' "$annotation_log" || {
+    echo "no ::error annotation for e2e/react/fixtures/annotation.fixture.js line 4"
+    grep '^::error' "$annotation_log" || true
+    exit 1
+}
+
 echo "OK: vitest integration checks passed"
