@@ -71,6 +71,14 @@ executable, invoked on a driver that stages sources, config, and
 node_modules into an ephemeral directory, then runs the vite CLI. The
 action runs with `block-network` and produces `out_dir` as a TreeArtifact.
 
+Sourcemap `sources` are rewritten to host-independent paths once vite
+exits: application files become workspace-relative (`src/App.jsx`) and
+linked packages keep their path below the bin directory
+(`node_modules/.aspect_rules_js/react@18.3.1/node_modules/react/index.js`).
+Without it every `.map` would encode the staging directory, the output base
+and the spawn strategy, and the TreeArtifact digest would change on every
+clean build. Inline sourcemaps (`--sourcemap inline`) are not rewritten.
+
 By default the entire `node_modules` tree enters the sandbox. Pass
 per-package links via `deps` to include only what the app declares — each
 link carries its full dependency closure:
