@@ -90,3 +90,15 @@ js_test(
     data = [":web_sourcemap"],
     entry_point = "sourcemap_sources_test.mjs",
 )
+
+node_cli(
+    name = "external_greet",
+    package = "@external_cli//:node_modules/greet",
+)
+
+js_test(
+    name = "node_cli_external_package_test",
+    args = ["$(rootpath :external_greet)"],
+    data = [":external_greet"],
+    entry_point = "node_cli_external_package_test.mjs",
+)

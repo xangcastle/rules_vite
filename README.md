@@ -122,7 +122,9 @@ Runs the vite dev server against the real workspace tree. Vite watches
 the developer's actual sources and serves websocket HMR directly. The
 linked `node_modules` tree is symlinked into the workspace for the
 server's lifetime and removed on exit. Source edits trigger HMR without
-restarting the server; dependency changes require a restart.
+restarting the server; dependency changes require a restart. The links
+land at their own path in the workspace, so `node_modules` and `deps` must
+come from the main repository; analysis fails for links from another one.
 
 ### node_cli
 

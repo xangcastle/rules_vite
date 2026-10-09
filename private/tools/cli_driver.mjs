@@ -21,8 +21,7 @@ if (!runfilesRoot) {
     }
 }
 
-const runfilesWorkspace = process.env.TEST_WORKSPACE || "_main";
-const packageDirectory = path.join(runfilesRoot, runfilesWorkspace, packagePath);
+const packageDirectory = path.join(runfilesRoot, packagePath);
 
 let entryRelativePath = entryArgument;
 if (entryRelativePath === "auto") {

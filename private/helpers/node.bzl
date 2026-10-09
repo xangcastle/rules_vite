@@ -9,45 +9,68 @@ def _execroot_prefix(label):
     parts = [p for p in [label.workspace_root, label.package] if p]
     return "/".join(parts) + "/" if parts else ""
 
-def _runfiles_prefix(label):
-    """The workspace+package prefix for runfiles-root-relative paths.
+def _runfiles_prefix(label, workspace_name):
+    """The repository+package prefix for runfiles-root-relative paths.
 
-    Runfiles address external repositories by canonical name directly
-    (no external/ segment), matching File.short_path's ../<canonical>/
-    form.
+    Runfiles address external repositories by canonical name (no external/
+    segment) and the main repository by workspace_name.
     """
-    workspace_root = label.workspace_root
-    if workspace_root.startswith("external/"):
-        workspace_root = workspace_root[len("external/"):]
-    parts = [p for p in [workspace_root, label.package] if p]
-    return "/".join(parts) + "/" if parts else ""
+    repository = label.workspace_root
+    if repository.startswith("external/"):
+        repository = repository[len("external/"):]
+    parts = [p for p in [repository or workspace_name, label.package] if p]
+    return "/".join(parts) + "/"
 
 def link_path(label, bin_dir_path):
     """The execroot-relative path of any node_modules link target."""
     return bin_dir_path + "/" + _execroot_prefix(label) + label.name
 
-def link_rel(label):
+def link_runfiles_path(label, workspace_name):
     """The runfiles-root-relative path of any node_modules link target."""
-    return _runfiles_prefix(label) + label.name
+    return _runfiles_prefix(label, workspace_name) + label.name
 
-def runfiles_node_modules_spec(node_modules, deps, target_name):
+def external_link_error(label, target_name):
+    """Rejects node_modules links from other repositories for vite_run.
+
+    The dev server links node_modules at the link's own path inside the
+    workspace; a link from another repository has no such path.
+
+    Args:
+      label: the node_modules or per-package link label.
+      target_name: the consuming target, for the message.
+
+    Returns:
+      None when the link belongs to the main repository, else the failure
+      message.
+    """
+    if label.workspace_root:
+        return (
+            "rules_vite %s: vite_run links node_modules into the workspace, " % target_name +
+            "so %s from another repository cannot be linked; " % str(label) +
+            "link the packages with npm_link_all_packages in this repository."
+        )
+    return None
+
+def runfiles_node_modules_spec(node_modules, deps, workspace_name, target_name):
     """Builds the node_modules spec string passed to run/test drivers.
 
     Args:
       node_modules: the whole-tree label, or None.
       deps: per-package link labels, possibly empty.
+      workspace_name: the main repository's runfiles directory name.
       target_name: the consuming target, for error messages.
 
     Returns:
-      "node_modules:<rel>" for the whole tree, "links:<rel>,<rel>" for
-      per-package links, or None when neither is given.
+      "node_modules:<path>" for the whole tree, "links:<path>,<path>" for
+      per-package links (runfiles-root-relative), or None when neither is
+      given.
     """
     if node_modules and deps:
         fail("rules_vite %s: pass either node_modules or deps, not both." % target_name)
     if node_modules:
-        return "node_modules:" + link_rel(node_modules.label)
+        return "node_modules:" + link_runfiles_path(node_modules.label, workspace_name)
     if deps:
-        link_relative_paths = []
+        link_runfiles_paths = []
         for dep in deps:
             if dep.label.name == "node_modules":
                 fail(
@@ -55,8 +78,8 @@ def runfiles_node_modules_spec(node_modules, deps, target_name):
                     "\":node_modules/<package>\"; got the whole tree %s - " % str(dep.label) +
                     "pass it as node_modules instead.",
                 )
-            link_relative_paths.append(link_rel(dep.label))
-        return "links:" + ",".join(link_relative_paths)
+            link_runfiles_paths.append(link_runfiles_path(dep.label, workspace_name))
+        return "links:" + ",".join(link_runfiles_paths)
     return None
 
 def link_package_name(label):
@@ -68,7 +91,7 @@ def link_package_name(label):
         )
     return label.name[len("node_modules/"):]
 
-def package_entry_path(node_modules_label, dep_labels, package_name, entry, target_name):
+def package_entry_path(node_modules_label, dep_labels, package_name, entry, workspace_name, target_name):
     """The runfiles path of a script inside one linked npm package.
 
     Derived from the same node_modules the target links, so a nested pnpm
@@ -80,16 +103,17 @@ def package_entry_path(node_modules_label, dep_labels, package_name, entry, targ
       dep_labels: per-package link labels (deps mode).
       package_name: npm package holding the script, e.g. "vitest".
       entry: path of the script inside that package, e.g. "vitest.mjs".
+      workspace_name: the main repository's runfiles directory name.
       target_name: the consuming target, for the error message.
 
     Returns:
-      The workspace-relative runfiles path of the script.
+      The runfiles-root-relative path of the script.
     """
     if node_modules_label:
-        return link_rel(node_modules_label) + "/" + package_name + "/" + entry
+        return link_runfiles_path(node_modules_label, workspace_name) + "/" + package_name + "/" + entry
     for label in dep_labels:
         if label.name == "node_modules/" + package_name:
-            return link_rel(label) + "/" + entry
+            return link_runfiles_path(label, workspace_name) + "/" + entry
     fail(
         "rules_vite %s: deps must include the %s link " % (target_name, package_name) +
         "(\":node_modules/%s\"), or pass node_modules instead." % package_name,
@@ -112,22 +136,21 @@ def _common_directory_prefix(prefix, directory):
         prefix = prefix[:idx] if idx >= 0 else ""
     return prefix
 
-def runfiles_tree_root(files):
+def runfiles_tree_root(files, workspace_name):
     """The deepest common directory of a set of files, runfiles-root-relative.
 
     Args:
       files: a depset of Files, enumerated once to compute the prefix.
+      workspace_name: the main repository's runfiles directory name.
 
     Returns:
-      The common directory prefix ("" for runfiles-root-scoped files).
+      The common directory prefix ("" when the files span repositories).
     """
     prefix = None
     for f in files.to_list():
-        short_path = f.short_path
-        if short_path.startswith("../"):
-            short_path = short_path[3:]
-        idx = short_path.rfind("/")
-        directory = short_path[:idx] if idx >= 0 else ""
+        runfiles_path = f.short_path[3:] if f.short_path.startswith("../") else workspace_name + "/" + f.short_path
+        idx = runfiles_path.rfind("/")
+        directory = runfiles_path[:idx]
         prefix = directory if prefix == None else _common_directory_prefix(prefix, directory)
         if not prefix:
             break

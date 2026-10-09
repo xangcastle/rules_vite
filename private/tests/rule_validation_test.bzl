@@ -8,7 +8,7 @@ every sandboxed e2e build.
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//private:validation.bzl", "vite_build_validation_error")
-load("//private/helpers:node.bzl", "foreign_src_error", "overlay_root_error", "package_entry_path", "runfiles_node_modules_spec", "strip_injected_path")
+load("//private/helpers:node.bzl", "external_link_error", "foreign_src_error", "overlay_root_error", "package_entry_path", "runfiles_node_modules_spec", "runfiles_tree_root", "strip_injected_path")
 
 def _subject_ok_impl(ctx):
     env = analysistest.begin(ctx)
@@ -110,33 +110,82 @@ def _nm_spec_impl(ctx):
 
     nm = struct(label = Label("//:node_modules"))
     vite = struct(label = Label("//:node_modules/vite"))
-    asserts.equals(env, "node_modules:node_modules", runfiles_node_modules_spec(nm, [], "t"), "tree spec")
-    asserts.equals(env, "links:node_modules/vite", runfiles_node_modules_spec(None, [vite], "t"), "links spec")
-    asserts.true(env, runfiles_node_modules_spec(None, [], "t") == None, "neither yields None")
+    external_vite = struct(label = Label("@aspect_rules_js//:node_modules/vite"))
+    asserts.equals(env, "node_modules:_main/node_modules", runfiles_node_modules_spec(nm, [], "_main", "t"), "tree spec")
+    asserts.equals(env, "links:_main/node_modules/vite", runfiles_node_modules_spec(None, [vite], "_main", "t"), "links spec")
+    asserts.equals(
+        env,
+        "links:_main/node_modules/vite,aspect_rules_js+/node_modules/vite",
+        runfiles_node_modules_spec(None, [vite, external_vite], "_main", "t"),
+        "external links are addressed by canonical repository name",
+    )
+    asserts.true(env, runfiles_node_modules_spec(None, [], "_main", "t") == None, "neither yields None")
 
     asserts.equals(
         env,
-        "node_modules/vitest/vitest.mjs",
-        package_entry_path(Label("//:node_modules"), [], "vitest", "vitest.mjs", "t"),
+        "_main/node_modules/vitest/vitest.mjs",
+        package_entry_path(Label("//:node_modules"), [], "vitest", "vitest.mjs", "_main", "t"),
         "root tree entry",
     )
     asserts.equals(
         env,
-        "apps/web/node_modules/vite/bin/vite.js",
-        package_entry_path(Label("//apps/web:node_modules"), [], "vite", "bin/vite.js", "t"),
+        "_main/apps/web/node_modules/vite/bin/vite.js",
+        package_entry_path(Label("//apps/web:node_modules"), [], "vite", "bin/vite.js", "_main", "t"),
         "nested importer tree entry",
     )
     asserts.equals(
         env,
-        "apps/web/node_modules/vitest/vitest.mjs",
+        "_main/apps/web/node_modules/vitest/vitest.mjs",
         package_entry_path(
             None,
             [Label("//apps/web:node_modules/react"), Label("//apps/web:node_modules/vitest")],
             "vitest",
             "vitest.mjs",
+            "_main",
             "t",
         ),
         "nested importer link entry",
+    )
+    asserts.equals(
+        env,
+        "aspect_rules_js+/tools/node_modules/vitest/vitest.mjs",
+        package_entry_path(Label("@aspect_rules_js//tools:node_modules"), [], "vitest", "vitest.mjs", "_main", "t"),
+        "external tree entry",
+    )
+
+    asserts.true(env, external_link_error(Label("//:node_modules/vite"), "t") == None, "main repository link is linkable")
+    asserts.true(
+        env,
+        external_link_error(Label("@aspect_rules_js//:node_modules/vite"), "t") != None,
+        "external link must fail for the dev server",
+    )
+
+    asserts.equals(
+        env,
+        "_main/components/ui",
+        runfiles_tree_root(
+            depset([struct(short_path = "components/ui/button.tsx"), struct(short_path = "components/ui/card.tsx")]),
+            "_main",
+        ),
+        "main repository tree root carries the workspace name",
+    )
+    asserts.equals(
+        env,
+        "shadcn+/components",
+        runfiles_tree_root(
+            depset([struct(short_path = "../shadcn+/components/ui/button.tsx"), struct(short_path = "../shadcn+/components/lib/cn.ts")]),
+            "_main",
+        ),
+        "external tree root is addressed by canonical repository name",
+    )
+    asserts.equals(
+        env,
+        "",
+        runfiles_tree_root(
+            depset([struct(short_path = "components/ui/button.tsx"), struct(short_path = "../shadcn+/components/ui/card.tsx")]),
+            "_main",
+        ),
+        "files across repositories share no tree root",
     )
 
     return unittest.end(env)

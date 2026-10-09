@@ -14,7 +14,7 @@ load("//private/helpers:node.bzl", "foreign_src_error", "package_entry_path", "r
 def _vitest_test_impl(ctx):
     node = ctx.toolchains["@rules_nodejs//nodejs:toolchain_type"].nodeinfo.node
 
-    node_modules_spec = runfiles_node_modules_spec(ctx.attr.node_modules, ctx.attr.deps, ctx.label.name)
+    node_modules_spec = runfiles_node_modules_spec(ctx.attr.node_modules, ctx.attr.deps, ctx.workspace_name, ctx.label.name)
 
     if ctx.file.config.short_path.startswith("../"):
         fail(
@@ -39,18 +39,21 @@ def _vitest_test_impl(ctx):
     })
     staged.extend(staged_injected_files(ctx))
 
-    manifest = {
-        "package": ctx.label.package,
-        "config": ctx.file.config.short_path,
-        "files": staged,
-    }
-    vitest_entry = ctx.attr.vitest_entry or package_entry_path(
+    vitest_entry = ctx.workspace_name + "/" + ctx.attr.vitest_entry if ctx.attr.vitest_entry else package_entry_path(
         ctx.attr.node_modules.label if ctx.attr.node_modules else None,
         [dep.label for dep in ctx.attr.deps],
         "vitest",
         "vitest.mjs",
+        ctx.workspace_name,
         ctx.label.name,
     )
+    manifest = {
+        "package": ctx.label.package,
+        "config": ctx.file.config.short_path,
+        "files": staged,
+        "node_modules": node_modules_spec,
+        "vitest_entry": vitest_entry,
+    }
     manifest_file = ctx.actions.declare_file(ctx.label.name + "_manifest.json")
     ctx.actions.write(manifest_file, json.encode(manifest))
 
@@ -59,7 +62,6 @@ def _vitest_test_impl(ctx):
         node,
         ctx.file._driver,
         runfiles = [manifest_file],
-        embedded_args = [node_modules_spec, vitest_entry],
     )
 
     files = [ctx.file.config, node, ctx.file._driver, manifest_file] + list(ctx.files.srcs) + list(ctx.files.injected_srcs)

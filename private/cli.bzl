@@ -9,11 +9,11 @@ The package's dependency closure rides along in runfiles.
 
 load("@hermetic_launcher//launcher:lib.bzl", "launcher")
 load("//private/helpers:js_stub_binary.bzl", "js_stub_binary")
-load("//private/helpers:node.bzl", "link_rel")
+load("//private/helpers:node.bzl", "link_runfiles_path")
 
 def _node_cli_impl(ctx):
     node = ctx.toolchains["@rules_nodejs//nodejs:toolchain_type"].nodeinfo.node
-    package_path = link_rel(ctx.attr.package.label)
+    package_path = link_runfiles_path(ctx.attr.package.label, ctx.workspace_name)
 
     executable = js_stub_binary(
         ctx,
