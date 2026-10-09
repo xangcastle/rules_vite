@@ -106,8 +106,12 @@ staged package. Tests always run with the `block-network` tag.
 Snapshots are compared, never written: the test runs vitest in CI mode, so
 a `toMatchSnapshot()` with no committed snapshot fails instead of silently
 writing one into the throwaway stage. Commit the `__snapshots__/` files and
-keep them in `srcs`; write or update them with vitest outside Bazel
-(`vitest run -u`). `--test_env=CI=false` restores vitest's default.
+keep them in `srcs`. Write or update them with
+`bazel run //pkg:tests -- -u [file...]`: the driver copies new or changed
+`__snapshots__/` files (and sources rewritten by inline snapshots) back
+into the source tree and removes the ones vitest dropped as obsolete.
+`bazel test --test_arg=-u` fails instead, since its writes would land in
+the stage. `--test_env=CI=false` restores vitest's default.
 
 Results are reported per test case: under `bazel test` vitest's JUnit
 reporter writes Bazel's `XML_OUTPUT_FILE`, so `bazel-testlogs/<pkg>/<name>/test.xml`
@@ -115,6 +119,50 @@ reporter writes Bazel's `XML_OUTPUT_FILE`, so `bazel-testlogs/<pkg>/<name>/test.
 case with its file, duration and failure message instead of one entry for
 the whole target. The console keeps vitest's `default` reporter unless the
 target's `args` pass their own `--reporter`.
+
+`--test_filter=<pattern>` is passed to vitest as `-t <pattern>`: only cases
+whose name matches run, the rest are reported as skipped. The test log is
+plain text (`NO_COLOR=1`); `--test_env=FORCE_COLOR=1` keeps vitest's colors.
+
+On GitHub Actions, failures become annotations on the pull request at the
+failing line, as with plain vitest. Pass the runner's flag through and let
+Bazel print the failing logs to the job output, where GitHub reads them:
+
+```
+bazel test //... --test_env=GITHUB_ACTIONS --test_output=errors
+```
+
+Annotation paths are rewritten from the test's stage to repository paths.
+When the Bazel workspace is not the repository root, add
+`--test_env=RULES_VITE_ANNOTATION_PREFIX=<workspace path in the repo>`.
+
+Reports vitest writes to disk (`--reporter=html`, `--reporter=json` with
+`--outputFile`, a junit `outputFile` of your own, coverage directories)
+are kept: files the run creates under the package are copied, at the
+same package-relative path, to `TEST_UNDECLARED_OUTPUTS_DIR`, i.e.
+`bazel-testlogs/<pkg>/<target>/test.outputs/` (zipped as `outputs.zip`
+when `--zip_undeclared_test_outputs` is on).
+
+`bazel coverage` runs vitest with coverage (v8; vitest's default `text`,
+`html`, `clover` and `json` reporters plus `lcov`): the text table lands in
+the test log, the html/json reports in `test.outputs/coverage/`, and the
+lcov, rewritten to workspace paths, feeds Bazel's `coverage.dat` and
+`--combined_report=lcov`. It needs `@vitest/coverage-v8` among the test's
+node_modules, and `--instrument_test_targets` (the sources are attributes
+of the test target itself, which Bazel does not instrument by default):
+
+```
+coverage --instrument_test_targets
+```
+
+Each `vitest_test` also declares `<name>.watch`: `bazel run //pkg:tests.watch`
+runs `vitest watch` against the real workspace tree, like `npx vitest`
+outside Bazel, with the same config and node_modules as the test. Edits
+rerun the affected tests; trailing args go to vitest
+(`bazel run //pkg:tests.watch -- src/lib/calc.test.js`). It is not CI mode,
+so as with plain vitest a missing snapshot is written into the source
+tree. The node_modules link follows the `vite_run` rules below and is
+removed when the watcher exits.
 
 ### vite_run
 

@@ -397,6 +397,33 @@ const VITE_CONFIG_NAMES = [
     "vite.config.cjs", "vite.config.mts", "vite.config.cts",
 ];
 
+function packageName(packageDirectory) {
+    return JSON.parse(fs.readFileSync(path.join(packageDirectory, "package.json"), "utf8")).name;
+}
+
+function enclosingPackageDirectory(file) {
+    let directory = path.dirname(file);
+    while (!fs.existsSync(path.join(directory, "package.json"))) {
+        if (directory === path.dirname(directory)) {
+            throw new Error(`dev_driver: no package.json above ${file}`);
+        }
+        directory = path.dirname(directory);
+    }
+    return directory;
+}
+
+function resolvePackageDirectory(fromDirectory, name) {
+    for (let directory = fromDirectory; directory !== path.dirname(directory); directory = path.dirname(directory)) {
+        const candidate = path.basename(directory) === "node_modules"
+            ? path.join(directory, name)
+            : path.join(directory, "node_modules", name);
+        if (fs.existsSync(path.join(candidate, "package.json"))) {
+            return fs.realpathSync(candidate);
+        }
+    }
+    throw new Error(`dev_driver: cannot resolve ${name} from ${fromDirectory}`);
+}
+
 async function fsAllowEntries(viteCliEntry) {
     const viteCliRealPath = fs.realpathSync(viteCliEntry);
     const storeMarker = `${path.sep}node_modules${path.sep}.aspect_rules_js${path.sep}`;
@@ -404,7 +431,10 @@ async function fsAllowEntries(viteCliEntry) {
     const packageStore = storeIndex >= 0
         ? viteCliRealPath.slice(0, storeIndex + storeMarker.length - 1)
         : path.dirname(path.dirname(path.dirname(viteCliRealPath)));
-    const vitePackageDirectory = path.dirname(path.dirname(viteCliRealPath));
+    const cliPackageDirectory = enclosingPackageDirectory(viteCliRealPath);
+    const vitePackageDirectory = packageName(cliPackageDirectory) === "vite"
+        ? cliPackageDirectory
+        : resolvePackageDirectory(cliPackageDirectory, "vite");
     const viteExports = JSON.parse(fs.readFileSync(path.join(vitePackageDirectory, "package.json"), "utf8")).exports["."];
     const viteNodeEntry = typeof viteExports === "string" ? viteExports : viteExports.import;
     const { searchForWorkspaceRoot } = await import(pathToFileURL(path.join(vitePackageDirectory, viteNodeEntry)).href);

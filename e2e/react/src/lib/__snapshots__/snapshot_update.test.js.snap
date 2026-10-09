@@ -1,0 +1,8 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`keeps its committed snapshot in sync with bazel run -u 1`] = `
+{
+  "next": 2,
+  "total": 5,
+}
+`;

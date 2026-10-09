@@ -8,6 +8,7 @@ network access, and without host node_modules.
 """
 
 load("@hermetic_launcher//launcher:lib.bzl", "launcher")
+load("//private:run.bzl", "workspace_cli_run")
 load("//private/helpers:js_stub_binary.bzl", "js_stub_binary")
 load("//private/helpers:node.bzl", "foreign_src_error", "package_entry_path", "runfiles_node_modules_spec", "staged_injected_files")
 
@@ -71,7 +72,14 @@ def _vitest_test_impl(ctx):
     ]
     runfiles = ctx.runfiles(files = files, transitive_files = depset(transitive = trees))
 
-    return [DefaultInfo(executable = executable, runfiles = runfiles)]
+    return [
+        DefaultInfo(executable = executable, runfiles = runfiles),
+        coverage_common.instrumented_files_info(
+            ctx,
+            source_attributes = ["srcs", "injected_srcs"],
+            extensions = ["js", "jsx", "mjs", "cjs", "ts", "tsx", "mts", "cts", "vue", "svelte"],
+        ),
+    ]
 
 _vitest_test = rule(
     implementation = _vitest_test_impl,
@@ -106,6 +114,12 @@ _vitest_test = rule(
         "deps": attr.label_list(
             doc = "Per-package node_modules links (e.g. vitest and the packages " +
                   "the config imports), linked individually in the stage.",
+        ),
+        "_lcov_merger": attr.label(
+            doc = "Bazel's coverage output generator; merges the lcov the driver writes under bazel coverage.",
+            default = configuration_field(fragment = "coverage", name = "output_generator"),
+            executable = True,
+            cfg = "exec",
         ),
         "_driver": attr.label(
             doc = "The node driver that stages the app tree and runs vitest.",
@@ -142,6 +156,11 @@ def vitest_test(
     staged tree. The standard test attributes (`env`, `size`, `data`,
     `args`) behave as for any bazel test target; `args` entries are
     appended by bazel test after the driver's own argv.
+
+    Also defines `<name>.watch`: `bazel run //pkg:<name>.watch` runs
+    `vitest watch` against the real workspace (node_modules and
+    injected_srcs linked in for its lifetime, like vite_run), re-running the
+    affected tests on every save.
 
     Args:
         name: Test target name.
@@ -189,4 +208,20 @@ def vitest_test(
         tags = all_tags,
         visibility = visibility,
         **kwargs
+    )
+
+    workspace_cli_run(
+        name = name + ".watch",
+        cli_package = "vitest",
+        cli_entry = "vitest.mjs",
+        cli_args = ["watch"],
+        config = config,
+        vite_entry = vitest_entry,
+        node_modules = node_modules,
+        deps = deps,
+        inject_dir = inject_dir if injected_srcs else "",
+        shared_srcs = injected_srcs,
+        tags = tags,
+        testonly = kwargs.get("testonly", False),
+        visibility = visibility,
     )

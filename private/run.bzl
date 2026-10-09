@@ -42,11 +42,19 @@ def _vite_run_impl(ctx):
     vite_entry = ctx.workspace_name + "/" + ctx.attr.vite_entry if ctx.attr.vite_entry else package_entry_path(
         ctx.attr.node_modules.label if ctx.attr.node_modules else None,
         [dep.label for dep in ctx.attr.deps],
-        "vite",
-        "bin/vite.js",
+        ctx.attr.cli_package,
+        ctx.attr.cli_entry,
         ctx.workspace_name,
         ctx.label.name,
     )
+
+    config_args = []
+    if ctx.attr.config:
+        package_prefix = ctx.label.package + "/" if ctx.label.package else ""
+        config_path = ctx.file.config.short_path
+        if not config_path.startswith(package_prefix):
+            fail("rules_vite %s: config %s must live in package %s" % (ctx.label.name, config_path, ctx.label.package))
+        config_args = ["--config", config_path[len(package_prefix):]]
 
     manifest_file = ctx.actions.declare_file(ctx.label.name + "_manifest.json")
     ctx.actions.write(manifest_file, json.encode({
@@ -61,6 +69,7 @@ def _vite_run_impl(ctx):
         node,
         ctx.file._driver,
         runfiles = [manifest_file],
+        embedded_args = ctx.attr.cli_args + config_args,
     )
 
     trees = ([ctx.attr.node_modules[DefaultInfo].files] if ctx.attr.node_modules else []) + [
@@ -86,6 +95,21 @@ _vite_run = rule(
         "vite_entry": attr.string(
             doc = "The vite CLI entry script, workspace-relative inside runfiles. " +
                   "Empty derives it from node_modules (or the vite link in deps).",
+        ),
+        "cli_package": attr.string(
+            doc = "npm package whose CLI runs against the workspace.",
+            default = "vite",
+        ),
+        "cli_entry": attr.string(
+            doc = "The CLI script inside cli_package.",
+            default = "bin/vite.js",
+        ),
+        "cli_args": attr.string_list(
+            doc = "Arguments placed before the ones bazel run appends (e.g. a subcommand).",
+        ),
+        "config": attr.label(
+            doc = "Config file passed to the CLI as --config; must live in this package.",
+            allow_single_file = True,
         ),
         "node_modules": attr.label(
             doc = "The whole npm_link_all_packages tree; prefer deps.",
@@ -121,6 +145,8 @@ _vite_run = rule(
         "@rules_nodejs//nodejs:toolchain_type",
     ],
 )
+
+workspace_cli_run = _vite_run
 
 def vite_run(
         name,
