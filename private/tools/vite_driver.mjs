@@ -68,9 +68,52 @@ if (manifest.config) {
     configArguments = ["--config", configRelativeToPackage];
 }
 
+const stageDirectoryAliases = [stageDirectory, fs.realpathSync(stageDirectory)];
+const bazelOutBinSegment = /\/bazel-out\/[^/]+\/bin\//;
+
+function canonicalSourcemapSource(mapDirectory, sourceRoot, source) {
+    const absoluteSource = path.resolve(mapDirectory, sourceRoot, source);
+    for (const stageAlias of stageDirectoryAliases) {
+        if (absoluteSource.startsWith(stageAlias + path.sep)) {
+            return path.relative(stageAlias, absoluteSource).split(path.sep).join("/");
+        }
+    }
+    const binMatch = bazelOutBinSegment.exec(absoluteSource);
+    return binMatch ? absoluteSource.slice(binMatch.index + binMatch[0].length) : source;
+}
+
+function normalizeSourcemaps() {
+    const mapFiles = fs.readdirSync(outputDirectoryAbsolute, { recursive: true })
+        .filter((relativePath) => relativePath.endsWith(".map"));
+    for (const relativePath of mapFiles) {
+        const mapPath = path.join(outputDirectoryAbsolute, relativePath);
+        const sourcemap = JSON.parse(fs.readFileSync(mapPath, "utf8"));
+        if (!Array.isArray(sourcemap.sources)) {
+            continue;
+        }
+        const mapDirectory = path.dirname(mapPath);
+        sourcemap.sources = sourcemap.sources.map(
+            (source) => canonicalSourcemapSource(mapDirectory, sourcemap.sourceRoot || "", source),
+        );
+        delete sourcemap.sourceRoot;
+        fs.writeFileSync(mapPath, JSON.stringify(sourcemap));
+    }
+}
+
 const removeStageDirectory = () => {
     try { fs.rmSync(stageDirectory, { recursive: true, force: true }); } catch {}
 };
+process.on("exit", (exitCode) => {
+    if (exitCode !== 0) {
+        return;
+    }
+    try {
+        normalizeSourcemaps();
+    } catch (error) {
+        console.error("vite_driver: sourcemap normalization failed: " + error.stack);
+        process.exitCode = 1;
+    }
+});
 process.on("exit", removeStageDirectory);
 for (const [signalName, exitCode] of [["SIGINT", 130], ["SIGTERM", 143], ["SIGHUP", 129]]) {
     process.on(signalName, () => {
