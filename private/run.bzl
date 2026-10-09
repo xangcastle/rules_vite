@@ -11,12 +11,16 @@ a server restart; dependency changes require restarting the server.
 
 load("@hermetic_launcher//launcher:lib.bzl", "launcher")
 load("//private/helpers:js_stub_binary.bzl", "js_stub_binary")
-load("//private/helpers:node.bzl", "overlay_root_error", "package_entry_path", "runfiles_node_modules_spec", "runfiles_tree_root")
+load("//private/helpers:node.bzl", "external_link_error", "overlay_root_error", "package_entry_path", "runfiles_node_modules_spec", "runfiles_tree_root")
 
 def _vite_run_impl(ctx):
     node = ctx.toolchains["@rules_nodejs//nodejs:toolchain_type"].nodeinfo.node
 
-    node_modules_spec = runfiles_node_modules_spec(ctx.attr.node_modules, ctx.attr.deps, ctx.label.name)
+    for link in ([ctx.attr.node_modules] if ctx.attr.node_modules else []) + ctx.attr.deps:
+        error = external_link_error(link.label, ctx.label.name)
+        if error:
+            fail(error)
+    node_modules_spec = runfiles_node_modules_spec(ctx.attr.node_modules, ctx.attr.deps, ctx.workspace_name, ctx.label.name)
 
     overlay_sources = []
     if ctx.attr.shared_dir:
@@ -26,7 +30,7 @@ def _vite_run_impl(ctx):
             dep[DefaultInfo].files
             for dep in ctx.attr.shared_srcs
         ])
-        shared_root = runfiles_tree_root(shared_files)
+        shared_root = runfiles_tree_root(shared_files, ctx.workspace_name)
         error = overlay_root_error(shared_root, ctx.label.name)
         if error:
             fail(error)
@@ -35,25 +39,28 @@ def _vite_run_impl(ctx):
     if ctx.attr.inject_dir and overlay_sources:
         overlay_spec = ctx.attr.inject_dir + "=" + ",".join(overlay_sources)
 
-    vite_entry = ctx.attr.vite_entry or package_entry_path(
+    vite_entry = ctx.workspace_name + "/" + ctx.attr.vite_entry if ctx.attr.vite_entry else package_entry_path(
         ctx.attr.node_modules.label if ctx.attr.node_modules else None,
         [dep.label for dep in ctx.attr.deps],
         "vite",
         "bin/vite.js",
+        ctx.workspace_name,
         ctx.label.name,
     )
+
+    manifest_file = ctx.actions.declare_file(ctx.label.name + "_manifest.json")
+    ctx.actions.write(manifest_file, json.encode({
+        "node_modules": node_modules_spec,
+        "vite_entry": vite_entry,
+        "package": ctx.label.package or ".",
+        "overlay": overlay_spec,
+    }))
 
     executable = js_stub_binary(
         ctx,
         node,
         ctx.file._driver,
-        runfiles = [],
-        embedded_args = [
-            node_modules_spec or "-",
-            vite_entry,
-            ctx.label.package or ".",
-            overlay_spec,
-        ],
+        runfiles = [manifest_file],
     )
 
     trees = ([ctx.attr.node_modules[DefaultInfo].files] if ctx.attr.node_modules else []) + [
@@ -64,7 +71,7 @@ def _vite_run_impl(ctx):
         for dep in ctx.attr.shared_srcs
     ]
     runfiles = ctx.runfiles(
-        files = [node, ctx.file._driver],
+        files = [node, ctx.file._driver, manifest_file],
         transitive_files = depset(transitive = trees),
     )
 

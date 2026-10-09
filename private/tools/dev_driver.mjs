@@ -4,10 +4,22 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-const [nodeModulesSpec, viteCliEntry, appPackage, overlaySpec, ...passthroughArgs] = process.argv.slice(2);
+const [manifestPath, ...passthroughArgs] = process.argv.slice(2);
 
-if (!nodeModulesSpec || nodeModulesSpec === "-" || !viteCliEntry || !appPackage) {
-    console.error("dev_driver: expected <node_modules_spec> <vite_cli_entry> <app_package> [overlay_spec] [args...]");
+if (!manifestPath) {
+    console.error("dev_driver: expected <manifest> [args...]");
+    process.exit(2);
+}
+
+const {
+    node_modules: nodeModulesSpec,
+    vite_entry: viteCliEntry,
+    package: appPackage,
+    overlay: overlaySpec,
+} = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+
+if (!nodeModulesSpec) {
+    console.error("dev_driver: the manifest carries no node_modules spec");
     process.exit(2);
 }
 
@@ -29,10 +41,8 @@ if (!runfilesRoot) {
     }
 }
 
-const runfilesWorkspace = process.env.TEST_WORKSPACE || "_main";
-
 function resolveRunfilesPath(runfilesRelativePath) {
-    const absolutePath = path.join(runfilesRoot, runfilesWorkspace, runfilesRelativePath);
+    const absolutePath = path.join(runfilesRoot, runfilesRelativePath);
     if (!fs.existsSync(absolutePath)) {
         console.error("dev_driver: not found in runfiles at " + absolutePath);
         process.exit(2);
@@ -332,15 +342,20 @@ for (const [signalName, exitCode] of [["SIGINT", 130], ["SIGTERM", 143], ["SIGHU
     });
 }
 
+const workspacePathOfMainRepositoryRunfile = (runfilesPath) => runfilesPath.slice(runfilesPath.indexOf("/") + 1);
+
 if (nodeModulesSpec.startsWith("node_modules:")) {
-    const nodeModulesRelativePath = nodeModulesSpec.slice("node_modules:".length);
+    const nodeModulesRunfilesPath = nodeModulesSpec.slice("node_modules:".length);
     acquireLink(
-        path.join(workspaceDirectory, nodeModulesRelativePath),
-        resolveRunfilesPath(nodeModulesRelativePath),
+        path.join(workspaceDirectory, workspacePathOfMainRepositoryRunfile(nodeModulesRunfilesPath)),
+        resolveRunfilesPath(nodeModulesRunfilesPath),
     );
 } else if (nodeModulesSpec.startsWith("links:")) {
-    for (const linkRelativePath of nodeModulesSpec.slice("links:".length).split(",")) {
-        acquireLink(path.join(workspaceDirectory, linkRelativePath), resolveRunfilesPath(linkRelativePath));
+    for (const linkRunfilesPath of nodeModulesSpec.slice("links:".length).split(",")) {
+        acquireLink(
+            path.join(workspaceDirectory, workspacePathOfMainRepositoryRunfile(linkRunfilesPath)),
+            resolveRunfilesPath(linkRunfilesPath),
+        );
     }
 } else {
     console.error("dev_driver: unsupported node_modules spec " + nodeModulesSpec);

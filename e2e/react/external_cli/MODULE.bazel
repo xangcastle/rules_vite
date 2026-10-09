@@ -1,0 +1,3 @@
+module(name = "external_cli")
+
+bazel_dep(name = "bazel_lib", version = "3.2.2")

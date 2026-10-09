@@ -1,0 +1,8 @@
+{
+  "name": "greet",
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "greet": "cli.js"
+  }
+}

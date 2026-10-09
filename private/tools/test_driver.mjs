@@ -3,10 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-const [manifestPath, nodeModulesSpec, vitestEntryScript, ...passthroughArgs] = process.argv.slice(2);
+const [manifestPath, ...passthroughArgs] = process.argv.slice(2);
 
-if (!manifestPath || !nodeModulesSpec || !nodeModulesSpec.includes(":") || !vitestEntryScript) {
-    console.error("test_driver: expected <manifest> <node_modules_spec> <vitest_entry> [args...]");
+if (!manifestPath) {
+    console.error("test_driver: expected <manifest> [args...]");
     process.exit(2);
 }
 
@@ -22,17 +22,6 @@ if (!runfilesRoot) {
     }
 }
 
-const runfilesWorkspace = process.env.TEST_WORKSPACE || "_main";
-
-function resolveWorkspaceRunfilesPath(workspaceRelativePath) {
-    const absolutePath = path.join(runfilesRoot, runfilesWorkspace, workspaceRelativePath);
-    if (!fs.existsSync(absolutePath)) {
-        console.error("test_driver: not found in runfiles at " + absolutePath);
-        process.exit(2);
-    }
-    return absolutePath;
-}
-
 function resolveRunfilesPath(runfilesRelativePath) {
     const absolutePath = path.join(runfilesRoot, runfilesRelativePath);
     if (!fs.existsSync(absolutePath)) {
@@ -43,6 +32,7 @@ function resolveRunfilesPath(runfilesRelativePath) {
 }
 
 const manifest = JSON.parse(fs.readFileSync(path.resolve(manifestPath), "utf8"));
+const { node_modules: nodeModulesSpec, vitest_entry: vitestEntryScript } = manifest;
 
 const stageDirectory = fs.mkdtempSync(
     path.join(process.env.TEST_TMPDIR || os.tmpdir(), "rules_vite_test_"),
@@ -65,20 +55,19 @@ for (const [signalName, exitCode] of [["SIGINT", 130], ["SIGTERM", 143], ["SIGHU
 }
 
 if (nodeModulesSpec.startsWith("node_modules:")) {
-    const nodeModulesRelativePath = nodeModulesSpec.slice("node_modules:".length);
     fs.symlinkSync(
-        resolveWorkspaceRunfilesPath(nodeModulesRelativePath),
+        resolveRunfilesPath(nodeModulesSpec.slice("node_modules:".length)),
         path.join(stageDirectory, "node_modules"),
         "dir",
     );
 } else if (nodeModulesSpec.startsWith("links:")) {
     fs.mkdirSync(path.join(stageDirectory, "node_modules"), { recursive: true });
-    for (const linkRelativePath of nodeModulesSpec.slice("links:".length).split(",")) {
+    for (const linkRunfilesPath of nodeModulesSpec.slice("links:".length).split(",")) {
         const marker = "node_modules/";
-        const packageName = linkRelativePath.slice(linkRelativePath.lastIndexOf(marker) + marker.length);
+        const packageName = linkRunfilesPath.slice(linkRunfilesPath.lastIndexOf(marker) + marker.length);
         const packageLinkPath = path.join(stageDirectory, "node_modules", packageName);
         fs.mkdirSync(path.dirname(packageLinkPath), { recursive: true });
-        fs.symlinkSync(resolveWorkspaceRunfilesPath(linkRelativePath), packageLinkPath, "dir");
+        fs.symlinkSync(resolveRunfilesPath(linkRunfilesPath), packageLinkPath, "dir");
     }
 } else {
     console.error("test_driver: unsupported node_modules spec " + nodeModulesSpec);
@@ -105,4 +94,4 @@ const junitArgs = process.env.XML_OUTPUT_FILE
     : [];
 process.argv = [process.argv[0], "vitest", "run", ...configArgs, ...junitArgs, ...passthroughArgs];
 
-await import(pathToFileURL(resolveWorkspaceRunfilesPath(vitestEntryScript)).href);
+await import(pathToFileURL(resolveRunfilesPath(vitestEntryScript)).href);
