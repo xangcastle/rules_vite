@@ -127,7 +127,6 @@ process.argv = [
     process.argv[0],
     "vite",
     "build",
-    ".",
     "--outDir",
     outputDirectoryAbsolute,
     ...configArguments,
