@@ -2,8 +2,10 @@
 
 The action executable is the node runtime resolved from the rules_nodejs
 toolchain. A node driver stages sources, config, and node_modules into an
-ephemeral temp directory, then runs the vite CLI with the project root
-pinned to the staged application. The action runs with block-network and
+ephemeral temp directory, then runs the vite CLI from the staged
+application (a `root` set in the vite config is honoured, so a multi-page
+app can keep its pages under a subdirectory). The action runs with
+block-network and
 produces out_dir as a TreeArtifact output. No shell is involved anywhere.
 """
 
