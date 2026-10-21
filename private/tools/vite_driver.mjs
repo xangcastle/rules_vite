@@ -47,10 +47,17 @@ if (manifest.package_links) {
 for (const stagedFile of manifest.files) {
     const stagedPath = path.join(stageDirectory, stagedFile.destination);
     fs.mkdirSync(path.dirname(stagedPath), { recursive: true });
-    fs.writeFileSync(
+    if (fs.statSync(stagedFile.source).isDirectory()) {
+        fs.cpSync(path.resolve(stagedFile.source), stagedPath, {
+            recursive: true,
+            dereference: true,
+        });
+    } else {
+        fs.writeFileSync(
             stagedPath,
             fs.readFileSync(path.resolve(stagedFile.source)),
         );
+    }
 }
 
 const stagedPackageDirectory = manifest.package ? path.join(stageDirectory, manifest.package) : stageDirectory;
