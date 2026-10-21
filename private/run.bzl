@@ -69,6 +69,9 @@ def _vite_run_impl(ctx):
     ] + [
         dep[DefaultInfo].files
         for dep in ctx.attr.shared_srcs
+    ] + [
+        dep[DefaultInfo].files
+        for dep in ctx.attr.data
     ]
     runfiles = ctx.runfiles(
         files = [node, ctx.file._driver, manifest_file],
@@ -107,6 +110,12 @@ _vite_run = rule(
         ),
         "env": attr.string_dict(
             doc = "Environment variables exported for the dev server.",
+        ),
+        "data": attr.label_list(
+            doc = "Extra targets built before the server starts and exposed in " +
+                  "its runfiles (for example the npm_link_package link of a " +
+                  "first-party package the vite config aliases).",
+            allow_files = True,
         ),
         "_driver": attr.label(
             doc = "The node driver that links node_modules and runs vite.",
